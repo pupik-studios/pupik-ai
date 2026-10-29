@@ -4,10 +4,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b0b13">
   <title>Pupik AI</title>
 
   <style>
-    * { box-sizing: border-box; }
+    * {
+      box-sizing: border-box;
+    }
 
     body {
       margin: 0;
@@ -20,6 +23,7 @@
     .app {
       max-width: 850px;
       height: 100dvh;
+      min-height: 450px;
       margin: auto;
       display: flex;
       flex-direction: column;
@@ -31,6 +35,22 @@
       border-bottom: 1px solid #282638;
     }
 
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .logo-icon {
+      display: grid;
+      place-items: center;
+      width: 43px;
+      height: 43px;
+      background: #211b3a;
+      border-radius: 14px;
+      font-size: 23px;
+    }
+
     h1 {
       margin: 0;
       font-size: 27px;
@@ -38,13 +58,13 @@
     }
 
     .subtitle {
-      margin-top: 7px;
+      margin-top: 5px;
       color: #aaa7c2;
       font-size: 13px;
     }
 
     #status {
-      margin-top: 12px;
+      margin-top: 13px;
       color: #c8b9ff;
       font-size: 13px;
       line-height: 1.5;
@@ -57,10 +77,11 @@
       flex-direction: column;
       gap: 14px;
       padding: 20px 0;
+      scroll-behavior: smooth;
     }
 
     .message {
-      max-width: 90%;
+      max-width: 92%;
       padding: 13px 16px;
       border-radius: 16px;
       line-height: 1.55;
@@ -71,12 +92,24 @@
     .user {
       align-self: flex-end;
       background: #6546c8;
+      border-bottom-right-radius: 5px;
     }
 
     .ai {
       align-self: flex-start;
       background: #1c1b2a;
       border: 1px solid #302d43;
+      border-bottom-left-radius: 5px;
+    }
+
+    .message img.generated-image {
+      display: block;
+      width: 100%;
+      max-width: 512px;
+      height: auto;
+      margin-top: 10px;
+      border-radius: 12px;
+      background: #111;
     }
 
     .bottom {
@@ -124,6 +157,12 @@
       color: white;
     }
 
+    #load {
+      width: 100%;
+      background: #29223e;
+      color: #d6c8ff;
+    }
+
     #clear {
       background: #242232;
       color: #e2dcff;
@@ -140,38 +179,79 @@
       line-height: 1.5;
       margin-top: 10px;
     }
+
+    .image-link {
+      display: inline-block;
+      margin-top: 10px;
+      color: #cbbaff;
+      font-size: 13px;
+    }
+
+    @media (max-width: 500px) {
+      .app {
+        padding: 12px;
+      }
+
+      h1 {
+        font-size: 24px;
+      }
+
+      .message {
+        max-width: 96%;
+      }
+    }
   </style>
 </head>
 
 <body>
   <main class="app">
     <header>
-      <h1>✦ Pupik AI</h1>
-      <div class="subtitle">Твой личный ИИ-помощник</div>
-      <div id="status">Нажми «Загрузить ИИ», чтобы начать.</div>
+      <div class="logo">
+        <div class="logo-icon">✦</div>
+        <div>
+          <h1>Pupik AI</h1>
+          <div class="subtitle">Твой личный ИИ-помощник</div>
+        </div>
+      </div>
+
+      <div id="status">
+        Нажми «Загрузить ИИ», чтобы начать общение.
+      </div>
     </header>
 
     <section id="chat" aria-live="polite">
       <div class="message ai">
-        Привет! Я Pupik AI. Я могу отвечать на вопросы, помогать с идеями и объяснять сложные вещи простыми словами.
+        Привет! Я Pupik AI! 👋
+
+        Я могу отвечать на вопросы и пробовать создавать картинки.
+
+        Например, напиши:
+        • Как дела?
+        • Объясни, почему идёт дождь.
+        • Нарисуй котика.
       </div>
     </section>
 
     <section class="bottom">
-      <textarea id="prompt" placeholder="Напиши сообщение..."></textarea>
+      <textarea
+        id="prompt"
+        placeholder="Напиши сообщение..."
+        aria-label="Сообщение"
+      ></textarea>
 
       <div class="buttons">
-        <button id="send" disabled>Отправить</button>
-        <button id="clear">Очистить чат</button>
+        <button id="send" disabled>Отправить ➤</button>
+        <button id="clear">Новый чат</button>
       </div>
 
       <div class="buttons">
-        <button id="load" style="width:100%">Загрузить ИИ</button>
+        <button id="load">Загрузить ИИ</button>
       </div>
 
       <div class="hint">
-        Первый запуск может занять несколько минут и скачать большую модель.
-        Не закрывай страницу во время загрузки.
+        Текстовая модель загружается в браузер при первом запуске.
+        Генерация изображений использует внешний сервис и требует интернета.
+        Модель может работать медленно на телефонах.
       </div>
     </section>
   </main>
@@ -202,37 +282,111 @@
       return el;
     }
 
+    function addImageMessage(prompt) {
+      const bubble = addMessage(
+        "🎨 Создаю изображение. Это может занять некоторое время...",
+        "ai"
+      );
+
+      const image = document.createElement("img");
+      image.className = "generated-image";
+      image.alt = "Изображение по запросу: " + prompt;
+      image.loading = "eager";
+      image.referrerPolicy = "no-referrer";
+
+      const imageUrl = new URL(
+        "https://image.pollinations.ai/prompt/" +
+        encodeURIComponent(prompt)
+      );
+
+      imageUrl.searchParams.set("width", "512");
+      imageUrl.searchParams.set("height", "512");
+      imageUrl.searchParams.set("nologo", "true");
+
+      image.onload = () => {
+        bubble.replaceChildren();
+
+        const title = document.createElement("div");
+        title.textContent = "Готово! 🎨";
+
+        const link = document.createElement("a");
+        link.className = "image-link";
+        link.href = image.src;
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+        link.textContent = "Открыть изображение";
+
+        bubble.append(title, image, link);
+        statusBox.textContent = "Изображение загружено.";
+        chat.scrollTop = chat.scrollHeight;
+      };
+
+      image.onerror = () => {
+        bubble.textContent =
+          "Не удалось получить изображение. Сервис может быть недоступен, " +
+          "заблокирован в твоём регионе или ограничивать запросы. " +
+          "Попробуй позже.";
+
+        statusBox.textContent = "Ошибка генерации картинки.";
+      };
+
+      image.src = imageUrl.toString();
+      bubble.appendChild(image);
+    }
+
+    function getImagePrompt(text) {
+      const patterns = [
+        /^нарисуй\s+/i,
+        /^нарисовать\s+/i,
+        /^сгенерируй\s+(?:картинку|изображение)\s*/i,
+        /^создай\s+(?:картинку|изображение)\s*/i,
+        /^сделай\s+(?:картинку|изображение)\s*/i,
+        /^покажи\s+(?:картинку|изображение)\s*/i,
+        /^draw\s+/i,
+        /^generate\s+(?:an?\s+)?image\s*(?:of\s*)?/i,
+        /^create\s+(?:an?\s+)?image\s*(?:of\s*)?/i
+      ];
+
+      for (const pattern of patterns) {
+        if (pattern.test(text)) {
+          return text.replace(pattern, "").trim() || "cute kitten";
+        }
+      }
+
+      return null;
+    }
+
     async function loadModel() {
       if (generator || busy) return;
 
       busy = true;
       loadButton.disabled = true;
       statusBox.textContent =
-        "Загружаю ИИ. При первом запуске нужно скачать модель...";
+        "Загружаю модель ИИ. При первом запуске скачиваются файлы...";
 
       try {
-        const options = {
-          dtype: "q4"
-        };
+        const options = { dtype: "q4" };
 
         if (navigator.gpu) {
           try {
             statusBox.textContent =
-              "Пробую запустить ИИ на видеопроцессоре...";
+              "Пробую запустить модель на видеопроцессоре...";
+
             generator = await pipeline(
               "text-generation",
               MODEL,
               { ...options, device: "webgpu" }
             );
-          } catch (gpuError) {
-            console.warn("WebGPU недоступен, пробую CPU:", gpuError);
+          } catch (error) {
+            console.warn("WebGPU недоступен, пробую WASM:", error);
             generator = null;
           }
         }
 
         if (!generator) {
           statusBox.textContent =
-            "Запускаю ИИ на процессоре. Это может быть медленно...";
+            "Загружаю модель для работы на процессоре...";
+
           generator = await pipeline(
             "text-generation",
             MODEL,
@@ -241,13 +395,15 @@
         }
 
         statusBox.textContent =
-          "ИИ готов! Можешь задавать вопросы.";
+          "ИИ готов! Теперь можно задавать вопросы.";
         sendButton.disabled = false;
         loadButton.textContent = "ИИ загружен";
       } catch (error) {
         console.error(error);
+
         statusBox.textContent =
-          "Не удалось загрузить модель. Проверь интернет, обнови страницу и попробуй снова.";
+          "Не удалось загрузить модель. Проверь интернет и попробуй ещё раз.";
+
         loadButton.disabled = false;
         loadButton.textContent = "Повторить загрузку";
       } finally {
@@ -257,26 +413,45 @@
 
     async function sendMessage() {
       const text = promptBox.value.trim();
-      if (!text || !generator || busy) return;
+
+      if (!text || busy) return;
+
+      const imagePrompt = getImagePrompt(text);
 
       addMessage(text, "user");
       promptBox.value = "";
-      history.push({ role: "user", content: text });
-
       busy = true;
       sendButton.disabled = true;
-      statusBox.textContent = "Pupik AI думает...";
-
-      const replyBubble = addMessage("Думаю...", "ai");
 
       try {
+        if (imagePrompt !== null) {
+          statusBox.textContent = "Отправляю запрос на создание картинки...";
+          addImageMessage(imagePrompt);
+          return;
+        }
+
+        if (!generator) {
+          addMessage(
+            "Сначала нажми «Загрузить ИИ».",
+            "ai"
+          );
+          statusBox.textContent = "Модель ещё не загружена.";
+          return;
+        }
+
+        statusBox.textContent = "Pupik AI думает...";
+
+        history.push({ role: "user", content: text });
+
+        const bubble = addMessage("Думаю...", "ai");
+
         const messages = [
           {
             role: "system",
             content:
               "Ты Pupik AI — дружелюбный универсальный помощник. " +
               "Отвечай прямо на вопрос пользователя, понятно и по делу. " +
-              "Не оценивай пользователя, не ставь оценки и баллы. " +
+              "Не оценивай пользователя и не выставляй баллы. " +
               "Отвечай на языке пользователя."
           },
           ...history.slice(-10)
@@ -292,32 +467,39 @@
         let answer = "";
 
         if (Array.isArray(output)) {
-          const last = output[output.length - 1];
-          answer = last?.content || "";
+          answer = output[output.length - 1]?.content || "";
         } else if (typeof output === "string") {
           answer = output;
         }
 
         if (!answer.trim()) {
-          throw new Error("Модель не вернула текст.");
+          throw new Error("Модель не вернула ответ.");
         }
 
-        replyBubble.textContent = answer.trim();
+        answer = answer.trim();
+        bubble.textContent = answer;
+
         history.push({
           role: "assistant",
-          content: answer.trim()
+          content: answer
         });
 
         statusBox.textContent = "Готово.";
       } catch (error) {
         console.error(error);
-        replyBubble.textContent =
-          "Не получилось получить ответ. Попробуй ещё раз.";
-        history.pop();
-        statusBox.textContent = "Ошибка генерации ответа.";
+        statusBox.textContent = "Ошибка: " + error.message;
+
+        addMessage(
+          "Не удалось получить ответ. Попробуй ещё раз.",
+          "ai"
+        );
+
+        if (history.length && history[history.length - 1].role === "user") {
+          history.pop();
+        }
       } finally {
         busy = false;
-        sendButton.disabled = !generator;
+        sendButton.disabled = false;
         chat.scrollTop = chat.scrollHeight;
       }
     }
@@ -335,8 +517,17 @@
     clearButton.addEventListener("click", () => {
       history = [];
       chat.replaceChildren();
-      addMessage("Чат очищен. Что обсудим?", "ai");
+
+      addMessage(
+        "Новый чат! 👋 Чем могу помочь? Напиши «нарисуй котика», чтобы попробовать генерацию картинки.",
+        "ai"
+      );
+
+      statusBox.textContent = generator
+        ? "ИИ готов."
+        : "Нажми «Загрузить ИИ», чтобы начать.";
     });
   </script>
 </body>
 </html>
+
