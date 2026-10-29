@@ -221,8 +221,7 @@ body {
   50% { opacity: 0.35; }
 }
 
-#clear-chat,
-#agent-mode {
+#clear-chat {
   appearance: none;
   border: 1px solid var(--line);
   background: transparent;
@@ -235,17 +234,10 @@ body {
   transition: color 0.2s, border-color 0.2s, background 0.2s;
 }
 
-#clear-chat:hover,
-#agent-mode:hover {
+#clear-chat:hover {
   color: var(--foam);
   border-color: var(--mint);
   background: rgba(125, 255, 179, 0.06);
-}
-
-#agent-mode.on {
-  color: var(--ink);
-  background: var(--mint);
-  border-color: var(--mint);
 }
 
 .log {

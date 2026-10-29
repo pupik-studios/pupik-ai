@@ -3,7 +3,7 @@
  * Не хардкодит отдельные продукты — берёт цель из фразы.
  */
 
-import { detectLang, fill } from "./lang.js?v=10";
+import { detectLang, fill } from "./lang.js?v=9";
 
 /** Футбольные вопросы про счёт / эль-класико — без live API */
 function tryFootballScore(text, lang) {

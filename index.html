@@ -1,50 +1,492 @@
+
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
-  <meta http-equiv="Pragma" content="no-cache" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#10111a">
+  <meta name="description" content="Pupik AI — чат с искусственным интеллектом">
   <title>Pupik AI</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Manrope:wght@400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css?v=10" />
+
+  <link rel="stylesheet" href="./style.css">
+
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #10111a;
+      --panel: #171925;
+      --panel2: #202336;
+      --border: #303449;
+      --text: #f2f3fa;
+      --muted: #a1a6bd;
+      --accent: #a78bfa;
+      --accent2: #7c5ce0;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI",
+        sans-serif;
+    }
+
+    button,
+    input,
+    textarea {
+      font: inherit;
+    }
+
+    button {
+      cursor: pointer;
+    }
+
+    .app {
+      display: grid;
+      grid-template-columns: 250px minmax(0, 1fr);
+      min-height: 100vh;
+    }
+
+    .sidebar {
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      padding: 20px 14px;
+      background: #141520;
+      border-right: 1px solid var(--border);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 6px;
+      font-size: 23px;
+      font-weight: 800;
+      letter-spacing: -0.8px;
+    }
+
+    .brand-icon {
+      display: grid;
+      width: 40px;
+      height: 40px;
+      place-items: center;
+      background: linear-gradient(135deg, #a78bfa, #6d55d9);
+      border-radius: 13px;
+      font-size: 23px;
+    }
+
+    .side-button {
+      width: 100%;
+      padding: 12px;
+      color: var(--text);
+      background: var(--panel2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      text-align: left;
+      transition: background 0.2s;
+    }
+
+    .side-button:hover {
+      background: #2b2f45;
+    }
+
+    .section-title {
+      margin: 10px 7px 0;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    #chat-list {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    .chat-row {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      min-width: 0;
+    }
+
+    .chat-item {
+      flex: 1;
+      min-width: 0;
+      padding: 10px;
+      overflow: hidden;
+      color: var(--muted);
+      background: transparent;
+      border: 1px solid transparent;
+      border-radius: 9px;
+      text-align: left;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .chat-item:hover,
+    .chat-item.on {
+      color: var(--text);
+      background: var(--panel2);
+      border-color: var(--border);
+    }
+
+    .chat-del {
+      width: 30px;
+      height: 32px;
+      flex-shrink: 0;
+      color: var(--muted);
+      background: transparent;
+      border: none;
+      border-radius: 8px;
+      font-size: 19px;
+    }
+
+    .chat-del:hover {
+      color: #ff8585;
+      background: #30202a;
+    }
+
+    .sidebar-bottom {
+      margin-top: auto;
+      padding: 12px 7px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.6;
+    }
+
+    .main {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      min-height: 100vh;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 17px 24px;
+      background: rgba(23, 25, 37, 0.88);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .topbar-title {
+      font-size: 17px;
+      font-weight: 750;
+    }
+
+    #status {
+      color: #86efac;
+      font-size: 12px;
+    }
+
+    #status[data-state="busy"] {
+      color: #fcd34d;
+    }
+
+    #log {
+      flex: 1;
+      width: 100%;
+      max-width: 950px;
+      min-height: 250px;
+      max-height: calc(100vh - 205px);
+      margin: 0 auto;
+      padding: 26px 24px;
+      overflow-y: auto;
+      scroll-behavior: smooth;
+    }
+
+    #log.drop {
+      outline: 2px dashed var(--accent);
+      outline-offset: -8px;
+      background: rgba(167, 139, 250, 0.06);
+    }
+
+    .row {
+      display: flex;
+      margin: 0 0 22px;
+    }
+
+    .row.user {
+      justify-content: flex-end;
+    }
+
+    .row.ai {
+      justify-content: flex-start;
+    }
+
+    .bubble {
+      max-width: min(760px, 88%);
+      padding: 13px 16px;
+      overflow-wrap: anywhere;
+      border: 1px solid var(--border);
+      border-radius: 17px;
+      line-height: 1.65;
+    }
+
+    .row.user .bubble {
+      color: white;
+      background: #5842a8;
+      border-color: #7057c7;
+      border-bottom-right-radius: 5px;
+    }
+
+    .row.ai .bubble {
+      background: var(--panel);
+      border-bottom-left-radius: 5px;
+    }
+
+    .bubble-text {
+      white-space: pre-wrap;
+    }
+
+    .bubble-img {
+      display: block;
+      width: auto;
+      max-width: 100%;
+      max-height: 520px;
+      margin-top: 10px;
+      border-radius: 12px;
+      object-fit: contain;
+    }
+
+    .bubble-file {
+      margin-top: 5px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .composer-area {
+      position: sticky;
+      bottom: 0;
+      padding: 14px 20px 20px;
+      background: linear-gradient(
+        to bottom,
+        rgba(16, 17, 26, 0.7),
+        var(--bg) 25%
+      );
+    }
+
+    .composer-inner {
+      width: 100%;
+      max-width: 850px;
+      margin: 0 auto;
+    }
+
+    #composer {
+      display: flex;
+      align-items: flex-end;
+      gap: 9px;
+      padding: 10px;
+      background: var(--panel);
+      border: 1px solid #3b3e55;
+      border-radius: 18px;
+      box-shadow: 0 10px 35px rgba(0, 0, 0, 0.2);
+    }
+
+    #composer:focus-within {
+      border-color: var(--accent);
+    }
+
+    #input {
+      flex: 1;
+      min-width: 0;
+      max-height: 128px;
+      padding: 10px 8px;
+      resize: none;
+      color: var(--text);
+      background: transparent;
+      border: none;
+      outline: none;
+      line-height: 1.5;
+    }
+
+    #input::placeholder {
+      color: #858ba4;
+    }
+
+    .icon-button {
+      display: grid;
+      width: 42px;
+      height: 42px;
+      flex-shrink: 0;
+      place-items: center;
+      color: var(--text);
+      background: var(--panel2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      font-size: 18px;
+    }
+
+    .icon-button:hover {
+      background: #30344b;
+    }
+
+    .send-button {
+      color: white;
+      background: var(--accent2);
+      border-color: var(--accent2);
+    }
+
+    .send-button:hover {
+      background: #8b6be8;
+    }
+
+    .composer-note {
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: 11px;
+      text-align: center;
+    }
+
+    #file {
+      display: none;
+    }
+
+    @media (max-width: 700px) {
+      .app {
+        grid-template-columns: 1fr;
+      }
+
+      .sidebar {
+        gap: 10px;
+        padding: 12px;
+        border-right: none;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .brand {
+        font-size: 19px;
+      }
+
+      .sidebar-bottom {
+        display: none;
+      }
+
+      #chat-list {
+        display: flex;
+        flex-direction: row;
+        overflow-x: auto;
+      }
+
+      .chat-row {
+        min-width: 130px;
+      }
+
+      .section-title {
+        margin-top: 2px;
+      }
+
+      .main {
+        min-height: 70vh;
+      }
+
+      .topbar {
+        padding: 13px 16px;
+      }
+
+      #log {
+        max-height: none;
+        padding: 20px 14px;
+      }
+
+      .composer-area {
+        padding: 10px 10px 14px;
+      }
+
+      .bubble {
+        max-width: 94%;
+      }
+    }
+  </style>
 </head>
+
 <body>
-  <div class="atmosphere" aria-hidden="true"></div>
-  <div class="layout">
-    <aside class="chats" aria-label="Чаты">
-      <button type="button" id="new-chat" class="new-chat">+ чат</button>
-      <div id="chat-list" class="chat-list"></div>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <span class="brand-icon">✦</span>
+        <span>Pupik AI</span>
+      </div>
+
+      <button id="new-chat" class="side-button" type="button">
+        ＋ Новый чат
+      </button>
+
+      <button id="clear-chat" class="side-button" type="button">
+        ↻ Очистить текущий чат
+      </button>
+
+      <div class="section-title">История чатов</div>
+      <div id="chat-list"></div>
+
+      <div class="sidebar-bottom">
+        Pupik AI<br>
+        Твои разговоры сохраняются в этом браузере.
+      </div>
     </aside>
 
-    <main class="shell">
-      <header class="brand-bar">
-        <div class="brand">
-          <p class="mark">Pupik AI</p>
-          <p class="tag">болтает · задачи · агент · критики</p>
-        </div>
-        <div class="meta">
-          <span id="status" data-state="idle">на связи</span>
-          <button type="button" id="agent-mode" title="Режим агента: саб-агенты критики" aria-pressed="false">агент</button>
-          <button type="button" id="clear-chat" title="Сброс беседы">сброс</button>
-        </div>
+    <main class="main">
+      <header class="topbar">
+        <div class="topbar-title">Чат с Pupik AI</div>
+        <div id="status" data-state="idle">на связи</div>
       </header>
 
-      <section id="log" class="log" aria-live="polite"></section>
+      <section id="log" aria-label="Сообщения чата" aria-live="polite"></section>
 
-      <form id="composer" class="composer">
-        <label class="attach" title="Прикрепить файл">
-          <span aria-hidden="true">📎</span>
-          <input type="file" id="file" multiple accept="image/*,.txt,.md,.json,.csv,.js,.py,.html,.css,.log" />
-        </label>
-        <label class="sr" for="input">Сообщение</label>
-        <textarea id="input" rows="1" placeholder="Текст, «нарисуй кота» или 📎 файл…" autocomplete="off"></textarea>
-        <button type="submit" aria-label="Отправить">→</button>
-      </form>
+      <div class="composer-area">
+        <div class="composer-inner">
+          <form id="composer">
+            <label
+              for="file"
+              class="icon-button"
+              title="Прикрепить файл"
+              aria-label="Прикрепить файл"
+            >📎</label>
+
+            <input
+              id="file"
+              type="file"
+              accept="image/*,.txt,.md,.json,.csv,.js,.ts,.py,.html,.css,.log,.svg"
+              multiple
+            >
+
+            <textarea
+              id="input"
+              rows="1"
+              placeholder="Напиши сообщение..."
+              aria-label="Сообщение"
+              autocomplete="off"
+            ></textarea>
+
+            <button
+              class="icon-button send-button"
+              type="submit"
+              title="Отправить"
+              aria-label="Отправить сообщение"
+            >➤</button>
+          </form>
+
+          <div class="composer-note">
+            Enter — отправить · Shift + Enter — новая строка
+          </div>
+        </div>
+      </div>
     </main>
   </div>
-  <script type="module" src="app.js?v=10"></script>
+
+  <!-- Сначала загружается агент, затем приложение -->
+  <script src="./agent.js"></script>
+  <script type="module" src="./app.js"></script>
 </body>
 </html>
