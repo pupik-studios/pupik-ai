@@ -659,9 +659,21 @@ if (chats.length === 0) {
 
 activeChatId = chats[0].id;
 
+
 saveChats();
 renderMessages();
 renderChatList();
 
-setStatus("Pupik AI готов. Модель загрузится при первом сообщении.");
+// Автоматическая загрузка ИИ при открытии сайта
+setStatus("Pupik AI запускается…");
+
+loadModel()
+    .then(() => {
+        setStatus("Pupik AI готов к работе!");
+    })
+    .catch((error) => {
+        console.error("Ошибка запуска Pupik AI:", error);
+        setStatus("Не удалось запустить ИИ. Проверь Console.");
+    });
+
 
