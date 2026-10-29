@@ -1,20 +1,30 @@
 
-
 <!DOCTYPE html>
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0b0b13">
   <title>Pupik AI</title>
 
   <style>
     * { box-sizing: border-box; }
 
+    :root {
+      --bg: #0b0b13;
+      --panel: #15121f;
+      --purple: #8055d9;
+      --purple-light: #c4a5ff;
+      --text: #f5f3ff;
+      --muted: #a99dbd;
+      --border: #30283d;
+    }
+
     body {
       margin: 0;
       font-family: Arial, sans-serif;
-      background: #0b0b13;
-      color: #f5f3ff;
+      background: var(--bg);
+      color: var(--text);
     }
 
     button, textarea { font: inherit; }
@@ -23,13 +33,17 @@
       border: 0;
       border-radius: 12px;
       padding: 12px 16px;
-      cursor: pointer;
       color: white;
-      background: #8055d9;
+      background: var(--purple);
+      cursor: pointer;
+      transition: filter .2s, transform .2s;
     }
 
     button:hover { filter: brightness(1.15); }
+    button:active { transform: scale(.98); }
     button:disabled { opacity: .55; cursor: wait; }
+
+    /* Загрузочный экран */
 
     #loadingScreen {
       position: fixed;
@@ -40,8 +54,11 @@
       align-items: center;
       justify-content: center;
       gap: 20px;
-      background: #0b0b13;
-      transition: opacity .35s ease;
+      padding: 24px;
+      background: var(--bg);
+      opacity: 1;
+      visibility: visible;
+      transition: opacity .35s ease, visibility .35s ease;
     }
 
     #loadingScreen.hidden {
@@ -51,72 +68,91 @@
     }
 
     .loading-logo {
-      color: #c4a5ff;
-      font-size: 34px;
+      font-size: 35px;
       font-weight: bold;
+      color: var(--purple-light);
+      letter-spacing: -1px;
     }
 
     .loading-spinner {
-      width: 54px;
-      height: 54px;
+      width: 56px;
+      height: 56px;
       border: 5px solid #302744;
-      border-top-color: #b69aff;
+      border-top-color: var(--purple-light);
       border-radius: 50%;
-      animation: spin .8s linear infinite;
+      animation: pupikSpin .8s linear infinite;
     }
 
-    @keyframes spin {
+    @keyframes pupikSpin {
       to { transform: rotate(360deg); }
     }
 
     #loadingText {
+      max-width: 340px;
       color: #c8b9ff;
       text-align: center;
-      max-width: 85%;
+      line-height: 1.6;
     }
 
     .loading-small {
+      max-width: 340px;
       color: #858095;
       font-size: 12px;
-      max-width: 320px;
+      line-height: 1.6;
       text-align: center;
+    }
+
+    .loading-error {
+      color: #ffaaaa;
+      font-size: 13px;
+      text-align: center;
+      max-width: 340px;
       line-height: 1.5;
     }
 
+    /* Верхняя панель */
+
     header {
-      height: 68px;
+      min-height: 68px;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 0 22px;
-      border-bottom: 1px solid #292337;
+      gap: 12px;
+      padding: 12px 22px;
       background: #100e19;
+      border-bottom: 1px solid #292337;
     }
 
     .brand {
+      color: var(--purple-light);
       font-size: 23px;
       font-weight: bold;
-      color: #c4a5ff;
     }
 
     .status {
-      color: #a99dbd;
+      color: var(--muted);
       font-size: 12px;
+      text-align: right;
     }
 
+    /* Чат */
+
     main {
+      width: 100%;
       max-width: 900px;
+      height: calc(100vh - 68px);
       height: calc(100dvh - 68px);
       margin: auto;
+      padding: 20px;
       display: flex;
       flex-direction: column;
-      padding: 20px;
+      gap: 12px;
     }
 
     #welcome {
+      max-width: 560px;
       margin: auto;
       text-align: center;
-      max-width: 560px;
     }
 
     #welcome h1 {
@@ -125,75 +161,103 @@
     }
 
     #welcome p {
-      color: #aaa1bb;
-      line-height: 1.6;
+      color: var(--muted);
+      line-height: 1.7;
     }
 
     #chat {
       flex: 1;
+      min-height: 0;
       overflow-y: auto;
       display: flex;
       flex-direction: column;
       gap: 16px;
-      padding: 6px 0 20px;
+      padding: 6px 4px 20px;
     }
+
+    #chat[hidden] { display: none; }
 
     .message {
       max-width: 85%;
       padding: 14px 16px;
       border-radius: 16px;
-      line-height: 1.55;
+      line-height: 1.6;
       overflow-wrap: anywhere;
       white-space: pre-wrap;
+      animation: appear .2s ease;
     }
 
-    .user {
+    @keyframes appear {
+      from { opacity: 0; transform: translateY(5px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .message.user {
       align-self: flex-end;
       background: #6240a4;
+      border-bottom-right-radius: 5px;
     }
 
-    .assistant {
+    .message.assistant {
       align-self: flex-start;
       background: #191622;
-      border: 1px solid #30283d;
+      border: 1px solid var(--border);
+      border-bottom-left-radius: 5px;
     }
 
     .message img {
       display: block;
       max-width: 100%;
+      height: auto;
+      margin-top: 12px;
       border-radius: 12px;
-      margin-top: 10px;
     }
+
+    .message .note {
+      color: var(--muted);
+      font-size: 12px;
+      white-space: normal;
+    }
+
+    /* Ввод */
 
     #composer {
       display: flex;
+      align-items: flex-end;
       gap: 10px;
-      padding: 12px;
+      padding: 10px;
       border: 1px solid #393047;
       border-radius: 18px;
-      background: #15121f;
+      background: var(--panel);
+    }
+
+    #composer:focus-within {
+      border-color: #8060b7;
+      box-shadow: 0 0 0 3px #8055d91c;
     }
 
     #prompt {
       flex: 1;
       min-width: 0;
-      resize: none;
+      min-height: 44px;
       max-height: 140px;
+      resize: vertical;
+      padding: 12px 6px;
       border: 0;
       outline: 0;
       background: transparent;
       color: white;
-      padding: 12px 6px;
+      line-height: 1.5;
     }
 
     #prompt::placeholder { color: #81788f; }
 
     .bottom {
       display: flex;
-      justify-content: space-between;
       align-items: center;
-      gap: 10px;
-      padding-top: 12px;
+      justify-content: space-between;
+      gap: 12px;
+      padding-top: 2px;
     }
 
     .hint {
@@ -203,60 +267,85 @@
     }
 
     .secondary {
+      flex-shrink: 0;
       background: #272132;
       border: 1px solid #3a3049;
     }
 
-    .error { color: #ffaaaa; }
-
     @media (max-width: 600px) {
-      header { padding: 0 14px; }
-      main { padding: 12px; }
+      header { padding: 12px 14px; }
+      .brand { font-size: 20px; }
+
+      main {
+        height: calc(100vh - 68px);
+        height: calc(100dvh - 68px);
+        padding: 12px;
+      }
+
       .message { max-width: 94%; }
-      .hint { font-size: 11px; }
+      .hint { font-size: 10px; }
+      #composer { gap: 6px; padding: 7px; }
+      #prompt { font-size: 14px; }
+      #sendButton { padding: 11px; font-size: 13px; }
+      .secondary { padding: 10px; font-size: 12px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: .01ms !important;
+        transition-duration: .01ms !important;
+      }
     }
   </style>
 </head>
 
 <body>
-  <div id="loadingScreen" class="hidden">
+  <!-- Начальный загрузочный экран -->
+  <div id="loadingScreen">
     <div class="loading-logo">✦ Pupik AI</div>
     <div class="loading-spinner"></div>
-    <div id="loadingText">Подготавливаем ИИ...</div>
-    <div class="loading-small">
-      При первой загрузке браузер скачает файлы модели.
-      Это может занять некоторое время.
+    <div id="loadingText">
+      Пробую запустить модель на видеопроцессоре...
     </div>
+    <div class="loading-small">
+      При первом запуске скачиваются файлы модели.
+      Пожалуйста, подожди.
+    </div>
+    <div id="loadingError" class="loading-error" hidden></div>
   </div>
 
   <header>
     <div class="brand">✦ Pupik AI</div>
-    <div class="status" id="status">ИИ не загружен</div>
+    <div class="status" id="status">Подготовка ИИ...</div>
   </header>
 
   <main>
     <section id="welcome">
       <h1>Чем могу помочь?</h1>
+      <p>Твой личный ИИ-помощник</p>
       <p>
-        Задавай вопросы обычным языком или попроси нарисовать картинку.
+        Задавай вопросы обычным языком или попроси создать картинку.
       </p>
-      <button id="startButton">Загрузить ИИ</button>
+      <button id="startButton" type="button">Загрузить ИИ</button>
       <p class="hint">
-        Модель работает в браузере. Первичная загрузка может быть большой.
+        Например: «Объясни, почему идёт дождь» или «Нарисуй котика».
       </p>
     </section>
 
     <section id="chat" hidden></section>
 
     <form id="composer">
-      <textarea id="prompt" rows="1"
+      <textarea
+        id="prompt"
+        rows="1"
         placeholder="Напиши сообщение..."
-        aria-label="Сообщение"></textarea>
-      <button id="sendButton" type="submit">Отправить</button>
+        aria-label="Сообщение"
+      ></textarea>
+      <button id="sendButton" type="submit">Отправить ➤</button>
     </form>
 
     <div class="bottom">
-      <div class="hint">Обычные вопросы · Генерация изображений</div>
+      <div class="hint">Вопросы · Ответы · Картинки</div>
       <button id="newChatButton" class="secondary" type="button">
         Новый чат
       </button>
@@ -270,12 +359,14 @@
 
     let generator = null;
     let busy = false;
+    let loadingStarted = false;
     let history = [];
 
     const $ = id => document.getElementById(id);
 
     const loadingScreen = $("loadingScreen");
     const loadingText = $("loadingText");
+    const loadingError = $("loadingError");
     const status = $("status");
     const welcome = $("welcome");
     const chat = $("chat");
@@ -285,6 +376,7 @@
 
     function showLoading(text) {
       loadingText.textContent = text;
+      loadingError.hidden = true;
       loadingScreen.classList.remove("hidden");
     }
 
@@ -299,6 +391,7 @@
       const message = document.createElement("div");
       message.className = "message " + role;
       message.textContent = text;
+
       chat.appendChild(message);
       chat.scrollTop = chat.scrollHeight;
       return message;
@@ -306,16 +399,17 @@
 
     function addImage(message, url) {
       const img = document.createElement("img");
-      img.alt = "Сгенерированное изображение";
+      img.alt = "Создаваемое изображение";
       img.loading = "lazy";
+      img.referrerPolicy = "no-referrer";
       img.src = url;
 
       img.onerror = () => {
         img.remove();
         const error = document.createElement("p");
-        error.className = "error";
+        error.className = "note";
         error.textContent =
-          "Не удалось загрузить изображение. Попробуй ещё раз.";
+          "Изображение не загрузилось. Возможно, сервис недоступен.";
         message.appendChild(error);
       };
 
@@ -323,11 +417,13 @@
     }
 
     async function loadModel() {
-      if (generator || busy) return;
+      if (generator || loadingStarted) return;
 
+      loadingStarted = true;
       busy = true;
       startButton.disabled = true;
-      showLoading("Загружаем библиотеку ИИ...");
+      showLoading("Загружаю библиотеку ИИ...");
+      status.textContent = "Загрузка...";
 
       try {
         const { pipeline, env } = await import(LIBRARY);
@@ -335,8 +431,9 @@
         env.allowLocalModels = false;
         env.useBrowserCache = true;
 
-        showLoading("Загружаем модель ИИ. Это может занять время...");
-        status.textContent = "Загрузка модели...";
+        showLoading(
+          "Пробую запустить модель на видеопроцессоре..."
+        );
 
         try {
           generator = await pipeline(
@@ -345,7 +442,13 @@
             { dtype: "q4", device: "webgpu" }
           );
         } catch (webgpuError) {
-          showLoading("WebGPU недоступен. Пробуем обычный режим...");
+          console.warn("WebGPU недоступен, пробую WASM:", webgpuError);
+          generator = null;
+
+          showLoading(
+            "Видеопроцессор недоступен. Запускаю обычный режим..."
+          );
+
           generator = await pipeline(
             "text-generation",
             MODEL,
@@ -354,21 +457,37 @@
         }
 
         status.textContent = "ИИ готов";
+
         addMessage(
           "assistant",
-          "Привет! Я Pupik AI. Задавай вопросы или попроси нарисовать картинку."
+          "Привет! Я Pupik AI! 👋\nЗадавай вопросы или попроси нарисовать картинку."
         );
       } catch (error) {
-        console.error(error);
-        status.textContent = "Ошибка загрузки";
+        console.error("Ошибка запуска Pupik AI:", error);
+        status.textContent = "Ошибка запуска";
+
+        loadingText.textContent = "Не удалось запустить модель";
+        loadingError.hidden = false;
+        loadingError.textContent =
+          "Проверь интернет. Возможно, файлы модели недоступны или браузеру не хватает памяти.";
+
         addMessage(
           "assistant",
-          "Не удалось загрузить ИИ. Проверь интернет и попробуй нажать «Загрузить ИИ» ещё раз. Если ошибка повторяется, возможно, модель или библиотека недоступны в данный момент."
+          "Не получилось запустить текстовую модель. Проверь интернет и попробуй снова нажать «Загрузить ИИ»."
         );
       } finally {
         busy = false;
         startButton.disabled = false;
-        hideLoading();
+
+        if (generator) {
+          hideLoading();
+        } else {
+          // Показываем сообщение об ошибке на загрузочном экране.
+          // Нажатие кнопки повторного запуска снова начнёт загрузку.
+          startButton.textContent = "Повторить загрузку";
+        }
+
+        loadingStarted = false;
       }
     }
 
@@ -392,33 +511,28 @@
         return;
       }
 
-      const message = addMessage("assistant", "Создаю изображение...");
+      const message = addMessage(
+        "assistant",
+        "Пробую создать изображение..."
+      );
 
-      try {
-        const encoded = encodeURIComponent(
-          description + ", high quality, detailed"
-        );
+      const encoded = encodeURIComponent(
+        description + ", high quality, detailed"
+      );
 
-        const url =
-          "https://image.pollinations.ai/prompt/" + encoded +
-          "?width=1024&height=1024&nologo=true";
+      const url =
+        "https://image.pollinations.ai/prompt/" +
+        encoded +
+        "?width=1024&height=1024&nologo=true";
 
-        addImage(message, url);
-        const note = document.createElement("p");
-        note.textContent =
-          "Если картинка не появится, сервис генерации может быть недоступен.";
-        message.appendChild(note);
-      } catch (error) {
-        message.textContent =
-          "Не удалось создать изображение. Попробуй позже.";
-      }
+      addImage(message, url);
     }
 
     async function askModel(text) {
       if (!generator) {
         addMessage(
           "assistant",
-          "Сначала нажми «Загрузить ИИ», чтобы модель стала доступна."
+          "Сначала дождись загрузки ИИ или нажми «Загрузить ИИ»."
         );
         return;
       }
@@ -426,9 +540,16 @@
       const thinking = addMessage("assistant", "Думаю...");
 
       try {
-        history.push({ role: "user", content: text });
+        const messages = [
+          {
+            role: "system",
+            content: "Ты Pupik AI — дружелюбный помощник. Отвечай на вопрос пользователя прямо и понятно на русском языке, если он не просит другой язык. Не оценивай пользователя и не выставляй ему баллы."
+          },
+          ...history,
+          { role: "user", content: text }
+        ];
 
-        const result = await generator(history, {
+        const result = await generator(messages, {
           max_new_tokens: 220,
           temperature: 0.7,
           do_sample: true,
@@ -439,10 +560,11 @@
         let answer = "";
 
         if (Array.isArray(output)) {
-          answer = output
-            .filter(item => item.role === "assistant")
-            .map(item => item.content)
-            .join("\n");
+          const lastAssistant = [...output]
+            .reverse()
+            .find(item => item.role === "assistant");
+
+          answer = lastAssistant?.content || "";
         } else {
           answer = String(output || "");
         }
@@ -450,16 +572,21 @@
         answer = answer.trim();
 
         if (!answer) {
-          answer = "Не получилось сформировать ответ. Попробуй иначе.";
+          answer = "Не получилось сформировать ответ. Попробуй задать вопрос иначе.";
         }
 
         thinking.textContent = answer;
-        history.push({ role: "assistant", content: answer });
+
+        history.push(
+          { role: "user", content: text },
+          { role: "assistant", content: answer }
+        );
+
         chat.scrollTop = chat.scrollHeight;
       } catch (error) {
-        console.error(error);
+        console.error("Ошибка ответа:", error);
         thinking.textContent =
-          "Ошибка ответа. Попробуй сократить вопрос или перезагрузить страницу.";
+          "Ошибка при создании ответа. Попробуй ещё раз.";
       }
     }
 
@@ -502,6 +629,11 @@
         event.preventDefault();
         $("composer").requestSubmit();
       }
+    });
+
+    // Автоматически запускаем ИИ при открытии страницы.
+    window.addEventListener("load", () => {
+      loadModel();
     });
   </script>
 </body>
