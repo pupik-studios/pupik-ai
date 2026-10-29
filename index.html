@@ -2,514 +2,341 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Pupik AI</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pupik AI</title>
 
-<style>
-* { box-sizing: border-box; }
+  <style>
+    * { box-sizing: border-box; }
 
-body {
-    margin: 0;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    background: #080b14;
-    color: #f5f7ff;
-    height: 100dvh;
-    overflow: hidden;
-}
+    body {
+      margin: 0;
+      background: #0b0b13;
+      color: #f5f3ff;
+      font-family: Arial, sans-serif;
+      min-height: 100vh;
+    }
 
-button, textarea { font: inherit; }
+    .app {
+      max-width: 850px;
+      height: 100dvh;
+      margin: auto;
+      display: flex;
+      flex-direction: column;
+      padding: 18px;
+    }
 
-#loading {
-    position: fixed;
-    inset: 0;
-    z-index: 10;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 24px;
-    background: radial-gradient(ellipse at top, #192753, #080b14 70%);
-}
+    header {
+      padding: 12px 0 18px;
+      border-bottom: 1px solid #282638;
+    }
 
-.loading-box {
-    width: min(420px, 100%);
-    text-align: center;
-}
+    h1 {
+      margin: 0;
+      font-size: 27px;
+      color: #b69aff;
+    }
 
-.logo {
-    width: 76px;
-    height: 76px;
-    display: grid;
-    place-items: center;
-    margin: 0 auto 20px;
-    border-radius: 24px;
-    background: linear-gradient(135deg, #6366f1, #06b6d4);
-    font-size: 36px;
-    font-weight: 900;
-    box-shadow: 0 0 50px #6366f144;
-}
+    .subtitle {
+      margin-top: 7px;
+      color: #aaa7c2;
+      font-size: 13px;
+    }
 
-h1 { margin: 0; font-size: 36px; }
-.subtitle { color: #aab6d2; margin: 12px 0 32px; }
+    #status {
+      margin-top: 12px;
+      color: #c8b9ff;
+      font-size: 13px;
+      line-height: 1.5;
+    }
 
-.progress-row {
-    display: flex;
-    justify-content: space-between;
-    gap: 12px;
-    margin-bottom: 10px;
-    font-size: 13px;
-    text-align: left;
-}
+    #chat {
+      flex: 1;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      padding: 20px 0;
+    }
 
-#loadStatus { color: #b7c4df; }
-#percent { color: #67e8f9; font-weight: bold; }
+    .message {
+      max-width: 90%;
+      padding: 13px 16px;
+      border-radius: 16px;
+      line-height: 1.55;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
 
-.track {
-    height: 9px;
-    border-radius: 20px;
-    background: #26304a;
-    overflow: hidden;
-}
+    .user {
+      align-self: flex-end;
+      background: #6546c8;
+    }
 
-#bar {
-    width: 0%;
-    height: 100%;
-    background: linear-gradient(90deg, #6366f1, #22d3ee);
-    transition: width .2s;
-}
+    .ai {
+      align-self: flex-start;
+      background: #1c1b2a;
+      border: 1px solid #302d43;
+    }
 
-.note {
-    color: #8290ad;
-    font-size: 12px;
-    line-height: 1.7;
-    margin-top: 22px;
-}
+    .bottom {
+      border-top: 1px solid #282638;
+      padding-top: 14px;
+    }
 
-#retry {
-    display: none;
-    margin: 20px auto 0;
-    padding: 12px 20px;
-    background: #6366f1;
-    color: white;
-    border: 0;
-    border-radius: 12px;
-    cursor: pointer;
-}
+    textarea {
+      display: block;
+      width: 100%;
+      resize: vertical;
+      min-height: 55px;
+      max-height: 150px;
+      padding: 14px;
+      border-radius: 13px;
+      border: 1px solid #37334b;
+      background: #171622;
+      color: white;
+      font: inherit;
+      outline: none;
+    }
 
-#app {
-    display: none;
-    height: 100dvh;
-    max-width: 1000px;
-    margin: auto;
-    flex-direction: column;
-}
+    textarea:focus {
+      border-color: #9675ff;
+    }
 
-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    padding: 17px 20px;
-    border-bottom: 1px solid #20283b;
-}
+    .buttons {
+      display: flex;
+      gap: 9px;
+      margin-top: 9px;
+    }
 
-.brand { font-size: 20px; font-weight: 800; }
-.online { color: #67e8a5; font-size: 12px; margin-top: 4px; }
+    button {
+      border: 0;
+      border-radius: 11px;
+      padding: 12px 16px;
+      cursor: pointer;
+      font-weight: bold;
+      font-size: 14px;
+    }
 
-#clear {
-    border: 1px solid #303b54;
-    border-radius: 10px;
-    background: #141b2b;
-    color: #dce5fa;
-    padding: 9px 12px;
-    cursor: pointer;
-}
+    #send {
+      flex: 1;
+      background: #8864f5;
+      color: white;
+    }
 
-#messages {
-    flex: 1;
-    overflow-y: auto;
-    padding: 22px 16px;
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-}
+    #clear {
+      background: #242232;
+      color: #e2dcff;
+    }
 
-.welcome {
-    margin: auto;
-    text-align: center;
-    max-width: 430px;
-    color: #b5c0d8;
-    line-height: 1.7;
-}
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
 
-.welcome h2 { color: white; font-size: 26px; }
-
-.message {
-    max-width: 85%;
-    padding: 13px 16px;
-    border-radius: 17px;
-    line-height: 1.65;
-    white-space: pre-wrap;
-    overflow-wrap: anywhere;
-}
-
-.user {
-    align-self: flex-end;
-    background: #3346a3;
-    border-bottom-right-radius: 5px;
-}
-
-.assistant {
-    align-self: flex-start;
-    background: #151d2d;
-    border: 1px solid #26314a;
-    border-bottom-left-radius: 5px;
-}
-
-.typing { color: #93a5ca; }
-
-footer {
-    padding: 14px 16px max(14px, env(safe-area-inset-bottom));
-    border-top: 1px solid #20283b;
-}
-
-#composer {
-    display: flex;
-    align-items: flex-end;
-    gap: 10px;
-    padding: 8px;
-    background: #141b2b;
-    border: 1px solid #303b54;
-    border-radius: 18px;
-}
-
-#prompt {
-    flex: 1;
-    min-width: 0;
-    max-height: 150px;
-    resize: vertical;
-    border: 0;
-    outline: 0;
-    background: transparent;
-    color: white;
-    padding: 10px 8px;
-}
-
-#prompt::placeholder { color: #8290aa; }
-
-#send {
-    width: 43px;
-    height: 43px;
-    flex-shrink: 0;
-    border: 0;
-    border-radius: 13px;
-    background: linear-gradient(135deg, #6366f1, #0891b2);
-    color: white;
-    font-size: 20px;
-    cursor: pointer;
-}
-
-#send:disabled { opacity: .45; cursor: wait; }
-
-.footer-note {
-    text-align: center;
-    font-size: 11px;
-    color: #7785a0;
-    margin-top: 10px;
-}
-
-@media (max-width: 500px) {
-    header { padding: 14px; }
-    #messages { padding: 16px 12px; }
-    .message { max-width: 92%; }
-}
-</style>
+    .hint {
+      color: #89869f;
+      font-size: 12px;
+      line-height: 1.5;
+      margin-top: 10px;
+    }
+  </style>
 </head>
 
 <body>
-
-<section id="loading">
-    <div class="loading-box">
-        <div class="logo">P</div>
-        <h1>Pupik AI</h1>
-        <p class="subtitle">Твой личный ИИ в браузере</p>
-
-        <div class="progress-row">
-            <span id="loadStatus">Подготовка модели...</span>
-            <span id="percent">0%</span>
-        </div>
-
-        <div class="track">
-            <div id="bar"></div>
-        </div>
-
-        <p class="note" id="loadNote">
-            При первом запуске скачиваются файлы модели.
-            <br>Не закрывай страницу во время загрузки.
-        </p>
-
-        <button id="retry">Повторить загрузку</button>
-    </div>
-</section>
-
-<main id="app">
+  <main class="app">
     <header>
-        <div>
-            <div class="brand">✦ Pupik AI</div>
-            <div class="online" id="modelStatus">Локальный ИИ</div>
-        </div>
-        <button id="clear">Новый чат</button>
+      <h1>✦ Pupik AI</h1>
+      <div class="subtitle">Твой личный ИИ-помощник</div>
+      <div id="status">Нажми «Загрузить ИИ», чтобы начать.</div>
     </header>
 
-    <section id="messages" aria-live="polite"></section>
+    <section id="chat" aria-live="polite">
+      <div class="message ai">
+        Привет! Я Pupik AI. Я могу отвечать на вопросы, помогать с идеями и объяснять сложные вещи простыми словами.
+      </div>
+    </section>
 
-    <footer>
-        <form id="composer">
-            <textarea
-                id="prompt"
-                rows="1"
-                placeholder="Напиши сообщение Pupik AI..."
-                aria-label="Сообщение"
-            ></textarea>
-            <button id="send" type="submit" aria-label="Отправить">↑</button>
-        </form>
-        <div class="footer-note">
-            Ответы генерируются локальной моделью на твоём устройстве
-        </div>
-    </footer>
-</main>
+    <section class="bottom">
+      <textarea id="prompt" placeholder="Напиши сообщение..."></textarea>
 
-<script type="module">
-const MODEL_ID = "Llama-3.2-1B-Instruct-q4f16_1-MLC";
-const HISTORY_KEY = "pupik-ai-local-history-v1";
+      <div class="buttons">
+        <button id="send" disabled>Отправить</button>
+        <button id="clear">Очистить чат</button>
+      </div>
 
-const $ = id => document.getElementById(id);
+      <div class="buttons">
+        <button id="load" style="width:100%">Загрузить ИИ</button>
+      </div>
 
-let engine = null;
-let busy = false;
-let history = [];
+      <div class="hint">
+        Первый запуск может занять несколько минут и скачать большую модель.
+        Не закрывай страницу во время загрузки.
+      </div>
+    </section>
+  </main>
 
-try {
-    const saved = JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]");
-    if (Array.isArray(saved)) {
-        history = saved.filter(item =>
-            item &&
-            ["user", "assistant"].includes(item.role) &&
-            typeof item.content === "string"
-        ).slice(-40);
-    }
-} catch {
-    history = [];
-}
+  <script type="module">
+    import { pipeline } from
+      "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.2";
 
-function setProgress(progress) {
-    if (typeof progress?.progress === "number") {
-        const percent = Math.round(
-            Math.max(0, Math.min(1, progress.progress)) * 100
-        );
-        $("percent").textContent = percent + "%";
-        $("bar").style.width = percent + "%";
-    }
+    const MODEL = "onnx-community/Qwen2.5-0.5B-Instruct";
 
-    if (progress?.text) {
-        $("loadStatus").textContent = progress.text;
-    }
-}
+    const statusBox = document.getElementById("status");
+    const chat = document.getElementById("chat");
+    const promptBox = document.getElementById("prompt");
+    const sendButton = document.getElementById("send");
+    const loadButton = document.getElementById("load");
+    const clearButton = document.getElementById("clear");
 
-function showError(error) {
-    console.error("Pupik AI:", error);
+    let generator = null;
+    let busy = false;
+    let history = [];
 
-    $("loadStatus").textContent = "Не удалось загрузить модель";
-    $("loadNote").textContent =
-        (error?.message || String(error)) +
-        " Проверь интернет, поддержку WebGPU и Console.";
-
-    $("retry").style.display = "inline-block";
-}
-
-async function loadModel() {
-    $("retry").style.display = "none";
-
-    if (!("gpu" in navigator)) {
-        throw new Error(
-            "WebGPU недоступен. Используй актуальный Chrome и проверь поддержку GPU."
-        );
+    function addMessage(text, type) {
+      const el = document.createElement("div");
+      el.className = "message " + type;
+      el.textContent = text;
+      chat.appendChild(el);
+      chat.scrollTop = chat.scrollHeight;
+      return el;
     }
 
-    setProgress({ text: "Подключение движка ИИ..." });
+    async function loadModel() {
+      if (generator || busy) return;
 
-    const webllm = await import(
-        "https://esm.run/@mlc-ai/web-llm"
-    );
+      busy = true;
+      loadButton.disabled = true;
+      statusBox.textContent =
+        "Загружаю ИИ. При первом запуске нужно скачать модель...";
 
-    setProgress({ text: "Загрузка и подготовка модели..." });
+      try {
+        const options = {
+          dtype: "q4"
+        };
 
-    engine = await webllm.CreateMLCEngine(MODEL_ID, {
-        initProgressCallback: progress => setProgress(progress)
-    });
+        if (navigator.gpu) {
+          try {
+            statusBox.textContent =
+              "Пробую запустить ИИ на видеопроцессоре...";
+            generator = await pipeline(
+              "text-generation",
+              MODEL,
+              { ...options, device: "webgpu" }
+            );
+          } catch (gpuError) {
+            console.warn("WebGPU недоступен, пробую CPU:", gpuError);
+            generator = null;
+          }
+        }
 
-    $("percent").textContent = "100%";
-    $("bar").style.width = "100%";
-    $("loadStatus").textContent = "ИИ готов к работе!";
+        if (!generator) {
+          statusBox.textContent =
+            "Запускаю ИИ на процессоре. Это может быть медленно...";
+          generator = await pipeline(
+            "text-generation",
+            MODEL,
+            { ...options, device: "wasm" }
+          );
+        }
 
-    await new Promise(resolve => setTimeout(resolve, 500));
-
-    $("loading").style.display = "none";
-    $("app").style.display = "flex";
-    $("modelStatus").textContent = "● ИИ готов · локальная модель";
-
-    renderHistory();
-    $("prompt").focus();
-}
-
-function saveHistory() {
-    try {
-        localStorage.setItem(
-            HISTORY_KEY,
-            JSON.stringify(history.slice(-40))
-        );
-    } catch (error) {
-        console.warn("История не сохранена:", error);
-    }
-}
-
-function addBubble(role, content) {
-    const welcome = $("messages").querySelector(".welcome");
-    if (welcome) welcome.remove();
-
-    const bubble = document.createElement("div");
-    bubble.className = "message " +
-        (role === "user" ? "user" : "assistant");
-
-    // Используем textContent, чтобы сообщения не выполнялись как HTML.
-    bubble.textContent = content;
-
-    $("messages").appendChild(bubble);
-    $("messages").scrollTop = $("messages").scrollHeight;
-
-    return bubble;
-}
-
-function renderHistory() {
-    $("messages").replaceChildren();
-
-    if (!history.length) {
-        const welcome = document.createElement("div");
-        welcome.className = "welcome";
-
-        const heading = document.createElement("h2");
-        heading.textContent = "Привет! Я Pupik AI";
-
-        const text = document.createElement("p");
-        text.textContent =
-            "Я работаю на локальной языковой модели. " +
-            "Спроси меня о чём угодно или попроси объяснить сложную тему.";
-
-        welcome.append(heading, text);
-        $("messages").appendChild(welcome);
-        return;
+        statusBox.textContent =
+          "ИИ готов! Можешь задавать вопросы.";
+        sendButton.disabled = false;
+        loadButton.textContent = "ИИ загружен";
+      } catch (error) {
+        console.error(error);
+        statusBox.textContent =
+          "Не удалось загрузить модель. Проверь интернет, обнови страницу и попробуй снова.";
+        loadButton.disabled = false;
+        loadButton.textContent = "Повторить загрузку";
+      } finally {
+        busy = false;
+      }
     }
 
-    for (const item of history) {
-        addBubble(item.role, item.content);
-    }
-}
+    async function sendMessage() {
+      const text = promptBox.value.trim();
+      if (!text || !generator || busy) return;
 
-async function sendMessage(event) {
-    event?.preventDefault();
+      addMessage(text, "user");
+      promptBox.value = "";
+      history.push({ role: "user", content: text });
 
-    if (busy || !engine) return;
+      busy = true;
+      sendButton.disabled = true;
+      statusBox.textContent = "Pupik AI думает...";
 
-    const prompt = $("prompt").value.trim();
-    if (!prompt) return;
+      const replyBubble = addMessage("Думаю...", "ai");
 
-    busy = true;
-    $("send").disabled = true;
-    $("prompt").disabled = true;
+      try {
+        const messages = [
+          {
+            role: "system",
+            content:
+              "Ты Pupik AI — дружелюбный универсальный помощник. " +
+              "Отвечай прямо на вопрос пользователя, понятно и по делу. " +
+              "Не оценивай пользователя, не ставь оценки и баллы. " +
+              "Отвечай на языке пользователя."
+          },
+          ...history.slice(-10)
+        ];
 
-    $("prompt").value = "";
-
-    history.push({ role: "user", content: prompt });
-    addBubble("user", prompt);
-    saveHistory();
-
-    const typing = addBubble("assistant", "Думаю...");
-    typing.classList.add("typing");
-
-    try {
-        const result = await engine.chat.completions.create({
-            messages: [
-                {
-                    role: "system",
-                    content:
-                        "Ты Pupik AI, полезный и дружелюбный помощник. " +
-                        "Отвечай на языке пользователя. " +
-                        "Объясняй ясно и честно. Не выдумывай факты, " +
-                        "не утверждай, что выполнил действия, которых не выполнял."
-                },
-                ...history.slice(-20)
-            ],
-            temperature: 0.7,
-            max_tokens: 700
+        const result = await generator(messages, {
+          max_new_tokens: 180,
+          temperature: 0.7,
+          do_sample: true
         });
 
-        const answer =
-            result.choices?.[0]?.message?.content?.trim() ||
-            "Не удалось получить ответ. Попробуй ещё раз.";
+        const output = result[0].generated_text;
+        let answer = "";
 
-        typing.classList.remove("typing");
-        typing.textContent = answer;
+        if (Array.isArray(output)) {
+          const last = output[output.length - 1];
+          answer = last?.content || "";
+        } else if (typeof output === "string") {
+          answer = output;
+        }
 
-        history.push({ role: "assistant", content: answer });
-        history = history.slice(-40);
-        saveHistory();
-    } catch (error) {
-        console.error("Ошибка генерации:", error);
-        typing.classList.remove("typing");
-        typing.textContent =
-            "Ошибка генерации ответа: " +
-            (error?.message || String(error));
-    } finally {
+        if (!answer.trim()) {
+          throw new Error("Модель не вернула текст.");
+        }
+
+        replyBubble.textContent = answer.trim();
+        history.push({
+          role: "assistant",
+          content: answer.trim()
+        });
+
+        statusBox.textContent = "Готово.";
+      } catch (error) {
+        console.error(error);
+        replyBubble.textContent =
+          "Не получилось получить ответ. Попробуй ещё раз.";
+        history.pop();
+        statusBox.textContent = "Ошибка генерации ответа.";
+      } finally {
         busy = false;
-        $("send").disabled = false;
-        $("prompt").disabled = false;
-        $("prompt").focus();
-        $("messages").scrollTop = $("messages").scrollHeight;
+        sendButton.disabled = !generator;
+        chat.scrollTop = chat.scrollHeight;
+      }
     }
-}
 
-$("composer").addEventListener("submit", sendMessage);
+    loadButton.addEventListener("click", loadModel);
+    sendButton.addEventListener("click", sendMessage);
 
-$("prompt").addEventListener("keydown", event => {
-    if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
+    promptBox.addEventListener("keydown", event => {
+      if (event.key === "Enter" && !event.shiftKey) {
         event.preventDefault();
-        sendMessage(event);
-    }
-});
+        sendMessage();
+      }
+    });
 
-$("clear").addEventListener("click", () => {
-    if (busy) return;
-    history = [];
-    saveHistory();
-    renderHistory();
-    $("prompt").focus();
-});
-
-$("retry").addEventListener("click", async () => {
-    try {
-        await loadModel();
-    } catch (error) {
-        showError(error);
-    }
-});
-
-try {
-    await loadModel();
-} catch (error) {
-    showError(error);
-}
-</script>
-
+    clearButton.addEventListener("click", () => {
+      history = [];
+      chat.replaceChildren();
+      addMessage("Чат очищен. Что обсудим?", "ai");
+    });
+  </script>
 </body>
 </html>
-
