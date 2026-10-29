@@ -15,8 +15,14 @@
   --muted: #a69bb9;
 }
 
+html,
 body {
   margin: 0;
+  width: 100%;
+  min-height: 100%;
+}
+
+body {
   min-height: 100vh;
   background: var(--bg);
   color: var(--text);
@@ -41,19 +47,21 @@ button:disabled {
   display: none !important;
 }
 
-/* Экран загрузки */
+/* Загрузка */
 
 .loading-screen {
-  min-height: 100vh;
-  padding: 24px;
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
   display: flex;
   flex-direction: column;
-  align-items: center;
   justify-content: center;
-  gap: 18px;
+  align-items: center;
+  gap: 17px;
+  padding: 24px;
   text-align: center;
   background:
-    radial-gradient(ellipse at 50% 35%, #30204e 0%, transparent 55%),
+    radial-gradient(ellipse at 50% 35%, #30204e, transparent 58%),
     var(--bg);
 }
 
@@ -62,10 +70,10 @@ button:disabled {
 .brand-icon {
   display: grid;
   place-items: center;
-  font-weight: 900;
-  color: white;
   background: linear-gradient(135deg, #a87cff, #6840c8);
-  box-shadow: 0 0 35px #8d5de655;
+  color: white;
+  font-weight: 900;
+  box-shadow: 0 0 30px #8d5de655;
 }
 
 .logo {
@@ -98,7 +106,7 @@ button:disabled {
 }
 
 .progress-bar {
-  width: 0%;
+  width: 0;
   height: 100%;
   border-radius: inherit;
   background: linear-gradient(90deg, #8055d9, #c4a5ff);
@@ -119,7 +127,7 @@ button:disabled {
   font-size: 13px;
 }
 
-.retry-button {
+.button {
   padding: 12px 20px;
   border: 0;
   border-radius: 12px;
@@ -128,16 +136,17 @@ button:disabled {
   font-weight: 700;
 }
 
-/* Основной интерфейс */
+/* Интерфейс */
 
 .app {
   display: flex;
+  width: 100%;
   min-height: 100vh;
 }
 
 .sidebar {
   width: 250px;
-  flex-shrink: 0;
+  flex: 0 0 250px;
   padding: 24px 16px;
   display: flex;
   flex-direction: column;
@@ -161,17 +170,22 @@ button:disabled {
   font-size: 21px;
 }
 
-.new-chat {
-  padding: 13px;
+.new-chat,
+.image-button,
+.suggestion {
   border: 1px solid var(--border);
   border-radius: 12px;
   background: var(--panel-light);
   color: var(--text);
+}
+
+.new-chat {
+  padding: 13px;
   text-align: left;
-  transition: background 0.2s;
 }
 
 .new-chat:hover,
+.image-button:hover,
 .suggestion:hover {
   background: #302440;
 }
@@ -183,10 +197,10 @@ button:disabled {
 }
 
 .main {
-  min-width: 0;
-  flex: 1;
   display: flex;
+  flex: 1 1 0;
   flex-direction: column;
+  min-width: 0;
   min-height: 100vh;
 }
 
@@ -200,40 +214,32 @@ button:disabled {
   border-bottom: 1px solid var(--border);
 }
 
-.topbar > div {
+.topbar-title {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 12px;
 }
 
-.status {
+#status {
   color: #bca3e8;
   font-size: 12px;
 }
 
 .image-button {
   padding: 10px 14px;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  background: var(--panel-light);
-  color: var(--text);
 }
 
-.image-button:hover {
-  border-color: var(--purple);
-}
+/* Чат */
 
 .messages {
   width: 100%;
   max-width: 900px;
-  flex: 1;
+  flex: 1 1 auto;
   align-self: center;
   padding: 28px 24px;
   overflow-y: auto;
 }
-
-/* Стартовый экран */
 
 .welcome {
   min-height: 55vh;
@@ -272,13 +278,7 @@ button:disabled {
 
 .suggestion {
   padding: 11px 14px;
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  background: var(--panel);
-  color: var(--text);
 }
-
-/* Сообщения */
 
 .message {
   display: flex;
@@ -290,7 +290,7 @@ button:disabled {
 .avatar {
   width: 34px;
   height: 34px;
-  flex-shrink: 0;
+  flex: 0 0 34px;
   display: grid;
   place-items: center;
   border-radius: 12px;
@@ -307,26 +307,22 @@ button:disabled {
 
 .message-content {
   min-width: 0;
-  padding: 9px 0;
+  padding: 7px 0;
   overflow-wrap: anywhere;
   white-space: pre-wrap;
   line-height: 1.75;
-}
-
-.message-content a {
-  color: var(--purple-light);
 }
 
 .generated-image {
   display: block;
   width: min(100%, 520px);
   height: auto;
-  margin-top: 14px;
+  margin-top: 8px;
   border: 1px solid var(--border);
   border-radius: 16px;
 }
 
-/* Поле ввода */
+/* Ввод */
 
 .composer {
   width: calc(100% - 48px);
@@ -339,7 +335,6 @@ button:disabled {
   border: 1px solid #443456;
   border-radius: 18px;
   background: var(--panel);
-  box-shadow: 0 10px 40px #00000020;
 }
 
 .composer:focus-within {
@@ -366,16 +361,12 @@ button:disabled {
 #sendButton {
   width: 42px;
   height: 42px;
-  flex-shrink: 0;
+  flex: 0 0 42px;
   border: 0;
   border-radius: 13px;
   background: linear-gradient(135deg, #a47bff, #7648d4);
   color: white;
   font-size: 20px;
-}
-
-#sendButton:hover {
-  filter: brightness(1.12);
 }
 
 .disclaimer {
@@ -385,7 +376,7 @@ button:disabled {
   text-align: center;
 }
 
-/* Телефоны и узкие окна */
+/* Мобильный экран */
 
 @media (max-width: 650px) {
   .sidebar {
@@ -417,4 +408,3 @@ button:disabled {
     font-size: 13px;
   }
 }
-
