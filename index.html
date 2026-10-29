@@ -3,37 +3,35 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Pupik AI</title>
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="./style.css">
 </head>
 <body>
-  <div id="loadingScreen" class="loading-screen">
+  <section id="loadingScreen" class="loading-screen">
     <div class="logo">P</div>
     <h1>Pupik AI</h1>
-    <p id="loadingText">Подготовка искусственного интеллекта...</p>
-
+    <p id="loadingText">Подключение искусственного интеллекта...</p>
     <div class="progress-container">
       <div id="progressBar" class="progress-bar"></div>
     </div>
-
-    <div id="progressPercent">0%</div>
-    <p class="loading-note">Первая загрузка может занять некоторое время.</p>
-    <button id="retryButton" class="retry-button hidden">Повторить загрузку</button>
-  </div>
+    <strong id="progressPercent">0%</strong>
+    <p class="loading-note">При первом запуске требуется загрузка модели.</p>
+    <button id="retryButton" class="button hidden">Повторить загрузку</button>
+  </section>
 
   <div id="app" class="app hidden">
     <aside class="sidebar">
       <div class="brand"><span class="brand-icon">P</span> Pupik AI</div>
       <button id="newChatButton" class="new-chat">＋ Новый чат</button>
-      <div class="sidebar-bottom">Локальный ИИ в браузере</div>
+      <div class="sidebar-bottom">ИИ в твоём браузере</div>
     </aside>
 
     <main class="main">
       <header class="topbar">
-        <div>
+        <div class="topbar-title">
           <strong>Pupik AI</strong>
-          <span id="status" class="status">Готов</span>
+          <span id="status">Загрузка...</span>
         </div>
         <button id="imageButton" class="image-button">🎨 Создать изображение</button>
       </header>
@@ -73,28 +71,22 @@
     const sendButton = $("sendButton");
     const status = $("status");
 
-    let generator = null;
-    let isGenerating = false;
-
     const MODEL = "onnx-community/Qwen2.5-0.5B-Instruct";
+    let generator = null;
+    let busy = false;
 
-    function setProgress(percent, text) {
-      const value = Math.max(0, Math.min(100, Math.round(percent)));
-      progressBar.style.width = value + "%";
-      progressPercent.textContent = value + "%";
+    function progress(value, text) {
+      const n = Math.max(0, Math.min(100, Math.round(value || 0)));
+      progressBar.style.width = n + "%";
+      progressPercent.textContent = n + "%";
       if (text) loadingText.textContent = text;
     }
 
-    function updateProgress(info) {
+    function onProgress(info) {
       if (typeof info.progress === "number") {
-        const percent = Math.round(info.progress);
-        setProgress(percent, info.file
-          ? "Загрузка файла модели: " + percent + "%"
-          : "Загрузка модели...");
+        progress(info.progress, "Загрузка файла модели...");
       } else if (info.status === "initiate") {
-        setProgress(0, "Подготовка файла модели...");
-      } else if (info.status === "download") {
-        loadingText.textContent = "Загрузка модели...";
+        progress(0, "Подготовка файла модели...");
       } else if (info.status === "done") {
         loadingText.textContent = "Файл загружен, подготовка...";
       }
@@ -102,67 +94,68 @@
 
     async function loadModel() {
       retryButton.classList.add("hidden");
-      loadingScreen.classList.remove("hidden");
       app.classList.add("hidden");
-      setProgress(0, "Подключение библиотеки ИИ...");
+      loadingScreen.classList.remove("hidden");
+      progress(0, "Подключение библиотеки ИИ...");
 
       try {
-        const { pipeline, env } =
-          await import("https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.2");
+        const { pipeline, env } = await import(
+          "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.2"
+        );
 
         env.allowLocalModels = false;
         env.useBrowserCache = true;
 
-        loadingText.textContent = "Загрузка модели на видеопроцессоре...";
+        loadingText.textContent = "Загрузка модели...";
 
         try {
           generator = await pipeline("text-generation", MODEL, {
             dtype: "q4",
             device: "webgpu",
-            progress_callback: updateProgress
+            progress_callback: onProgress
           });
-        } catch (webgpuError) {
-          console.warn("WebGPU недоступен, пробую WASM:", webgpuError);
+        } catch (error) {
+          console.warn("Переключение на WASM:", error);
           generator = await pipeline("text-generation", MODEL, {
             dtype: "q4",
             device: "wasm",
-            progress_callback: updateProgress
+            progress_callback: onProgress
           });
         }
 
-        setProgress(100, "Модель готова!");
-        await new Promise(resolve => setTimeout(resolve, 350));
+        progress(100, "Модель готова!");
+
+        // Сначала скрываем загрузку, затем показываем приложение.
         loadingScreen.classList.add("hidden");
         app.classList.remove("hidden");
-        input.focus();
         status.textContent = "ИИ готов";
+        input.focus();
       } catch (error) {
-        console.error(error);
+        console.error("Ошибка загрузки модели:", error);
         loadingText.textContent =
-          "Не удалось загрузить модель. Проверь интернет и нажми «Повторить загрузку».";
+          "Не удалось загрузить модель. Проверь подключение к интернету и попробуй снова.";
         retryButton.classList.remove("hidden");
-        status.textContent = "Ошибка загрузки";
       }
     }
 
     function addMessage(text, role) {
       $("welcome")?.remove();
 
-      const message = document.createElement("div");
-      message.className = "message " + role;
+      const row = document.createElement("div");
+      row.className = "message " + role;
 
       const avatar = document.createElement("div");
       avatar.className = "avatar";
       avatar.textContent = role === "user" ? "Ты" : "P";
 
-      const content = document.createElement("div");
-      content.className = "message-content";
-      content.textContent = text;
+      const body = document.createElement("div");
+      body.className = "message-content";
+      body.textContent = text;
 
-      message.append(avatar, content);
-      messages.appendChild(message);
+      row.append(avatar, body);
+      messages.appendChild(row);
       messages.scrollTop = messages.scrollHeight;
-      return content;
+      return body;
     }
 
     function resetChat() {
@@ -171,45 +164,52 @@
           <div class="welcome-logo">P</div>
           <h1>Новый чат</h1>
           <p>Чем я могу помочь?</p>
+          <div class="suggestions">
+            <button class="suggestion">Расскажи интересный факт</button>
+            <button class="suggestion">Придумай историю</button>
+          </div>
         </div>`;
+
+      messages.querySelectorAll(".suggestion").forEach(button => {
+        button.addEventListener("click", () => sendMessage(button.textContent));
+      });
     }
 
-    async function sendMessage(text) {
-      text = text.trim();
-      if (!text || isGenerating) return;
+    async function sendMessage(rawText) {
+      const text = rawText.trim();
+      if (!text || busy || !generator) return;
 
       addMessage(text, "user");
       input.value = "";
-      isGenerating = true;
+      busy = true;
       sendButton.disabled = true;
       status.textContent = "Думаю...";
 
-      const answerElement = addMessage("Думаю...", "assistant");
+      const answer = addMessage("Думаю...", "assistant");
 
       try {
         const result = await generator(text, {
           max_new_tokens: 220,
-          temperature: 0.7,
           do_sample: true,
+          temperature: 0.7,
           repetition_penalty: 1.1,
           return_full_text: false
         });
 
-        let answer = result?.[0]?.generated_text;
-        if (Array.isArray(answer)) {
-          answer = answer.map(item => item.content || "").join("");
+        let output = result?.[0]?.generated_text;
+
+        if (Array.isArray(output)) {
+          output = output.map(part => part.content || "").join("");
         }
 
-        answerElement.textContent =
-          typeof answer === "string" && answer.trim()
-            ? answer.trim()
-            : "Не получилось сформировать ответ. Попробуй задать вопрос иначе.";
+        answer.textContent = typeof output === "string" && output.trim()
+          ? output.trim()
+          : "Не удалось сформировать ответ. Попробуй задать вопрос по-другому.";
       } catch (error) {
         console.error(error);
-        answerElement.textContent =
-          "Произошла ошибка при генерации ответа. Попробуй ещё раз.";
+        answer.textContent = "Ошибка генерации. Попробуй ещё раз.";
       } finally {
-        isGenerating = false;
+        busy = false;
         sendButton.disabled = false;
         status.textContent = "ИИ готов";
         messages.scrollTop = messages.scrollHeight;
@@ -223,42 +223,10 @@
     });
 
     $("newChatButton").addEventListener("click", resetChat);
-
-    $("retryButton").addEventListener("click", loadModel);
+    retryButton.addEventListener("click", loadModel);
 
     document.querySelectorAll(".suggestion").forEach(button => {
       button.addEventListener("click", () => sendMessage(button.textContent));
-    });
-
-    $("imageButton").addEventListener("click", () => {
-      const prompt = window.prompt("Какое изображение создать?");
-      if (!prompt?.trim()) return;
-
-      const imageUrl =
-        "https://image.pollinations.ai/prompt/" +
-        encodeURIComponent(prompt.trim()) +
-        "?width=1024&height=1024&nologo=true";
-
-      addMessage("Создай изображение: " + prompt, "user");
-      const content = addMessage("Готовлю изображение...", "assistant");
-
-      const link = document.createElement("a");
-      link.href = imageUrl;
-      link.target = "_blank";
-      link.rel = "noopener noreferrer";
-      link.textContent = "Открыть сгенерированное изображение";
-      content.replaceChildren(link);
-
-      const image = document.createElement("img");
-      image.className = "generated-image";
-      image.alt = prompt;
-      image.src = imageUrl;
-      image.loading = "lazy";
-      image.onerror = () => {
-        content.textContent =
-          "Не удалось загрузить изображение. Попробуй позже.";
-      };
-      content.appendChild(image);
     });
 
     input.addEventListener("keydown", event => {
@@ -268,8 +236,34 @@
       }
     });
 
+    $("imageButton").addEventListener("click", () => {
+      const prompt = window.prompt("Какое изображение создать?");
+      if (!prompt?.trim()) return;
+
+      const url =
+        "https://image.pollinations.ai/prompt/" +
+        encodeURIComponent(prompt.trim()) +
+        "?width=1024&height=1024&nologo=true";
+
+      addMessage("Создай изображение: " + prompt, "user");
+      const body = addMessage("Загружаю изображение...", "assistant");
+
+      const image = document.createElement("img");
+      image.className = "generated-image";
+      image.alt = prompt;
+      image.src = url;
+
+      image.onload = () => {
+        body.textContent = "";
+        body.appendChild(image);
+      };
+
+      image.onerror = () => {
+        body.textContent = "Не удалось загрузить изображение. Попробуй позже.";
+      };
+    });
+
     loadModel();
   </script>
 </body>
 </html>
-
