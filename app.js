@@ -465,6 +465,70 @@ function named(text) {
   return userName ? `${userName}, ${text}` : text.charAt(0).toUpperCase() + text.slice(1);
 }
 
+function previousUserText() {
+  const users = chatHistory.filter(item => item.role === "user");
+  return (users.length > 1 ? users[users.length - 2].content : "").toLowerCase().replace(/ё/g, "е");
+}
+
+function visualCodeAnswer(q) {
+  const visual = /визуал|visual code|scratch|блочн/.test(q);
+  const rejectsPython = /не на питон|не питон|без питона|не python/.test(q);
+  if (!visual && !rejectsPython) return "";
+
+  const prev = previousUserText();
+  const topic = `${q} ${prev}`;
+  if (/тренаж|русск|перевод|фраз/.test(topic) && /2|втор/.test(q)) {
+    return named(`вот тренажёр слов страницей, без Python. Сохрани как words.html и открой в браузере.
+
+\`\`\`html
+<!DOCTYPE html>
+<meta charset="utf-8">
+<p id="ask"></p>
+<input id="word">
+<button id="ok">Проверить</button>
+<script>
+const pairs = [["привет", "hello"], ["спасибо", "thank you"], ["пожалуйста", "please"]];
+let i = 0;
+const ask = document.getElementById("ask");
+function show() { ask.textContent = "Как по-английски: " + pairs[i][0]; }
+show();
+document.getElementById("ok").onclick = () => {
+  const answer = document.getElementById("word").value.trim().toLowerCase();
+  ask.textContent = answer === pairs[i][1] ? "Верно" : "Нет, это " + pairs[i][1];
+  i = (i + 1) % pairs.length;
+  setTimeout(show, 900);
+};
+</script>
+\`\`\`
+
+Файл можно править в Visual Studio Code.`);
+  }
+
+  return named(`без Python: это страница, её открывают в браузере и правят в Visual Studio Code. Сохрани как game.html.
+
+\`\`\`html
+<!DOCTYPE html>
+<meta charset="utf-8">
+<p id="log">Я загадал число от 1 до 20. Есть 5 попыток.</p>
+<input id="guess" type="number">
+<button id="ok">Проверить</button>
+<script>
+const secret = Math.floor(Math.random() * 20) + 1;
+let left = 5;
+document.getElementById("ok").onclick = () => {
+  const guess = Number(document.getElementById("guess").value);
+  const log = document.getElementById("log");
+  left -= 1;
+  if (guess === secret) log.textContent = "Угадал!";
+  else if (!left) log.textContent = "Число было " + secret;
+  else log.textContent = (guess < secret ? "Больше. " : "Меньше. ") + "Осталось " + left;
+};
+</script>
+\`\`\`
+
+Идея 2 — тренажёр слов, идея 3 — табло. Напиши номер.`);
+}
+
 function codeAnswer(q) {
   const game = /игр/.test(q) && /питон|python|наивн|програм|напиш|код/.test(q);
   if (game) {
@@ -527,11 +591,11 @@ function ideaAnswer(q) {
   if (!/иде|проект/.test(q)) return "";
   return named(`три идеи на один вечер:
 
-1. Игра «угадай число» на Python. Напиши «напиши наивную игру в питон» — пришлю код.
-2. Тренажёр русских фраз: программа показывает слово, ты пишешь перевод.
+1. Игра «угадай число»: программа загадывает число, ты угадываешь.
+2. Тренажёр русских фраз: показывает слово, ты пишешь перевод.
 3. Мини-табло: вводишь счёт, программа говорит, кто победил.
 
-Назови номер — напишу программу.`);
+Напиши номер и как кодить: питон или визуальный код (страница для браузера).`);
 }
 
 function factAnswer(q) {
@@ -576,6 +640,9 @@ function localAnswer(question) {
   if (/сколько/.test(q) && /кот/.test(q) && /пл[ао]нет|мир|земл/.test(q)) {
     return `${name ? name + ", т" : "Т"}очного числа нет: кошек никто не переписывает всех сразу. Домашних оценивают примерно в 600 миллионов, а вместе с бездомными — около миллиарда.`;
   }
+
+  const visual = visualCodeAnswer(q);
+  if (visual) return visual;
 
   const code = codeAnswer(q);
   if (code) return code;
