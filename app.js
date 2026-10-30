@@ -6,60 +6,100 @@ const MODEL = "onnx-community/Qwen2.5-1.5B-Instruct";
 
 env.useBrowserCache = true;
 
-const status = document.getElementById("status");
-const welcome = document.getElementById("welcome");
-const messages = document.getElementById("messages");
-const form = document.getElementById("form");
-const promptInput = document.getElementById("prompt");
-const sendButton = document.getElementById("send");
-const newChatButton = document.getElementById("newChat");
+const $ = id => document.getElementById(id);
+
+const loadingScreen = $("loadingScreen");
+const registerScreen = $("registerScreen");
+const chatApp = $("chatApp");
+const loadingPercent = $("loadingPercent");
+const progressBar = $("progressBar");
+const loadingStatus = $("loadingStatus");
+const status = $("status");
+
+const welcome = $("welcome");
+const messages = $("messages");
+const form = $("form");
+const promptInput = $("prompt");
+const sendButton = $("send");
+const newChatButton = $("newChat");
 
 let ai = null;
+let loading = false;
 let busy = false;
 let history = [];
 
 const SYSTEM_PROMPT = `
 Ты — Pupik AI, самостоятельный искусственный интеллект.
-Ты общаешься с пользователем дружелюбно и естественно.
+Общайся дружелюбно и естественно.
 Отвечай на вопросы, объясняй темы, помогай с идеями и программированием.
 Не оценивай пользователя и его вопросы.
-Не ставь баллы, рейтинги и оценки.
-Не проверяй качество вопроса.
-Не ищи ответы в интернете.
+Не ставь баллы и рейтинги.
 Не утверждай, что знаешь то, чего не знаешь.
 Если пользователь пишет на русском, отвечай на русском.
 Пиши понятно и по существу.
 `;
 
-function setStatus(text) {
-  status.textContent = text;
+function setProgress(value, message) {
+  const percent = Math.max(0, Math.min(100, Math.round(value)));
+  loadingPercent.textContent = percent + "%";
+  progressBar.style.width = percent + "%";
+  if (message) loadingStatus.textContent = message;
 }
 
-function addMessage(text, role) {
-  const element = document.createElement("div");
-  element.className = `message ${role}`;
-  element.textContent = text;
-  messages.appendChild(element);
-  messages.scrollTop = messages.scrollHeight;
-  return element;
+function showRegistrationOrChat() {
+  loadingScreen.hidden = true;
+  window.pupikStopGame?.();
+
+  const nickname = localStorage.getItem("pupik-nickname");
+
+  if (nickname) {
+    openChat(nickname);
+  } else {
+    registerScreen.hidden = false;
+    $("nickname").focus();
+  }
 }
 
-function updateWelcome() {
-  welcome.style.display = history.length ? "none" : "flex";
+function openChat(nickname) {
+  registerScreen.hidden = true;
+  chatApp.hidden = false;
+
+  $("profileName").textContent = nickname;
+  $("welcomeName").textContent = nickname;
+
+  restoreHistory();
 }
+
+$("registerForm").addEventListener("submit", event => {
+  event.preventDefault();
+
+  const nickname = $("nickname").value.trim();
+
+  if (nickname.length < 2) {
+    $("nickname").setCustomValidity("Введи минимум 2 символа");
+    $("nickname").reportValidity();
+    return;
+  }
+
+  $("nickname").setCustomValidity("");
+  localStorage.setItem("pupik-nickname", nickname);
+  openChat(nickname);
+});
 
 async function loadAI() {
-  if (ai || busy) return;
+  if (ai || loading) return;
 
-  busy = true;
-  setStatus("Загрузка нейросети…");
+  loading = true;
+  setProgress(0, "Подготовка нейросети…");
 
-  const progress = (info) => {
+  const progress = info => {
     if (info.status === "progress" &&
         typeof info.progress === "number") {
-      setStatus(`Загрузка нейросети: ${Math.round(info.progress)}%`);
+      setProgress(info.progress, "Загрузка нейросети…");
     } else if (info.status === "downloading") {
-      setStatus("Скачивание модели…");
+      loadingStatus.textContent = "Скачивание файлов модели…";
+    } else if (info.status === "done") {
+      loadingStatus.textContent = "Подготовка модели…";
     }
   };
 
@@ -87,21 +127,59 @@ async function loadAI() {
       });
     }
 
-    setStatus("Pupik AI готов");
+    setProgress(100, "Pupik AI загружен!");
+    status.textContent = "Pupik AI готов";
+
+    setTimeout(showRegistrationOrChat, 500);
+
   } catch (error) {
-    console.error("Ошибка загрузки:", error);
-    setStatus("Ошибка загрузки модели");
+    console.error("Ошибка загрузки модели:", error);
+    loadingStatus.textContent =
+      "Не удалось загрузить модель. Проверь интернет и попробуй снова.";
+
+    const retry = document.createElement("button");
+    retry.textContent = "Повторить загрузку";
+    retry.className = "retry-button";
+    retry.addEventListener("click", () => {
+      retry.remove();
+      loading = false;
+      loadAI();
+    });
+
+    loadingScreen.querySelector(".game-content").appendChild(retry);
+
   } finally {
-    busy = false;
+    loading = false;
   }
+}
+
+function addMessage(text, role) {
+  const wrapper = document.createElement("div");
+  wrapper.className = `message ${role}`;
+
+  const label = document.createElement("div");
+  label.className = "role";
+  label.textContent = role === "user"
+    ? localStorage.getItem("pupik-nickname") || "Ты"
+    : "Pupik AI";
+
+  const bubble = document.createElement("div");
+  bubble.className = "bubble";
+  bubble.textContent = text;
+
+  wrapper.append(label, bubble);
+  messages.appendChild(wrapper);
+  wrapper.scrollIntoView({ behavior: "smooth", block: "end" });
+}
+
+function updateWelcome() {
+  welcome.hidden = history.length > 0;
 }
 
 function extractAnswer(result) {
   const generated = result?.[0]?.generated_text;
 
-  if (typeof generated === "string") {
-    return generated;
-  }
+  if (typeof generated === "string") return generated;
 
   if (Array.isArray(generated)) {
     return generated[generated.length - 1]?.content || "";
@@ -115,32 +193,21 @@ async function sendMessage(text) {
 
   if (!question || busy) return;
 
-  addMessage(question, "user");
-
-  history.push({
-    role: "user",
-    content: question
-  });
-
-  promptInput.value = "";
-  updateWelcome();
-
   if (!ai) {
-    await loadAI();
-  }
-
-  if (!ai) {
-    addMessage(
-      "Не удалось загрузить нейросеть. Проверь интернет и обнови страницу.",
-      "assistant"
-    );
+    addMessage("Нейросеть ещё загружается. Подожди окончания загрузки.", "assistant");
     return;
   }
 
   busy = true;
   sendButton.disabled = true;
   promptInput.disabled = true;
-  setStatus("Pupik AI думает…");
+
+  addMessage(question, "user");
+  history.push({ role: "user", content: question });
+
+  promptInput.value = "";
+  updateWelcome();
+  status.textContent = "Pupik AI думает…";
 
   try {
     const chat = [
@@ -160,24 +227,16 @@ async function sendMessage(text) {
       "Не получилось сформировать ответ. Попробуй ещё раз.";
 
     addMessage(answer, "assistant");
-
-    history.push({
-      role: "assistant",
-      content: answer
-    });
+    history.push({ role: "assistant", content: answer });
 
     localStorage.setItem("pupik-history", JSON.stringify(history));
+    status.textContent = "Pupik AI готов";
 
-    setStatus("Pupik AI готов");
   } catch (error) {
-    console.error("Ошибка ответа:", error);
+    console.error("Ошибка генерации:", error);
+    addMessage("Произошла ошибка при генерации ответа. Попробуй ещё раз.", "assistant");
+    status.textContent = "Ошибка генерации";
 
-    addMessage(
-      "Произошла ошибка при генерации ответа. Попробуй ещё раз.",
-      "assistant"
-    );
-
-    setStatus("Ошибка генерации");
   } finally {
     busy = false;
     sendButton.disabled = false;
@@ -186,9 +245,16 @@ async function sendMessage(text) {
   }
 }
 
-form.addEventListener("submit", (event) => {
+form.addEventListener("submit", event => {
   event.preventDefault();
   sendMessage(promptInput.value);
+});
+
+promptInput.addEventListener("keydown", event => {
+  if (event.key === "Enter" && !event.shiftKey) {
+    event.preventDefault();
+    form.requestSubmit();
+  }
 });
 
 newChatButton.addEventListener("click", () => {
@@ -200,19 +266,6 @@ newChatButton.addEventListener("click", () => {
   updateWelcome();
 });
 
-document.querySelectorAll(".suggestion").forEach((button) => {
-  button.addEventListener("click", () => {
-    sendMessage(button.textContent);
-  });
-});
-
-promptInput.addEventListener("keydown", (event) => {
-  if (event.key === "Enter" && !event.shiftKey) {
-    event.preventDefault();
-    form.requestSubmit();
-  }
-});
-
 function restoreHistory() {
   try {
     const saved = JSON.parse(
@@ -220,15 +273,13 @@ function restoreHistory() {
     );
 
     if (Array.isArray(saved)) {
-      history = saved.filter((item) =>
+      history = saved.filter(item =>
         item &&
         (item.role === "user" || item.role === "assistant") &&
         typeof item.content === "string"
       );
 
-      for (const item of history) {
-        addMessage(item.content, item.role);
-      }
+      history.forEach(item => addMessage(item.content, item.role));
     }
   } catch (error) {
     console.warn("Не удалось восстановить историю:", error);
@@ -238,5 +289,5 @@ function restoreHistory() {
   updateWelcome();
 }
 
-restoreHistory();
 loadAI();
+
