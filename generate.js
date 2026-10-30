@@ -944,10 +944,11 @@ function drawScene(ctx, theme, rnd) {
   ctx.fillText("Pupik AI · локальный рисунок", 14, H - 12);
 }
 
-function loadImage(src) {
+function loadImage(src, cors = false) {
   return new Promise((resolve, reject) => {
     const img = new Image();
-
+    if (cors) img.crossOrigin = "anonymous";
+    img.referrerPolicy = "no-referrer";
     img.onload = () => resolve(img);
     img.onerror = reject;
     img.src = src;
@@ -1008,39 +1009,45 @@ export function extractImagePrompt(text) {
  * @param {{ photoDataUrl?: string }} [opts]
  */
 const PHOTO_QUERIES = [
-  [/роналд|криштиан|cr7/, "Cristiano Ronaldo"],
-  [/месси|messi/, "Lionel Messi"],
-  [/бургер|гамбургер|чизбургер|burger/, "hamburger"],
-  [/кот|кошк|котен|kitten|cat/, "cat"],
-  [/собак|щенок|puppy|dog/, "dog"],
-  [/кролик|заяц|bunny|rabbit/, "rabbit"],
-  [/лис|fox/, "fox"],
-  [/медвед|bear/, "bear"],
-  [/птиц|попуга|сова|bird/, "bird"],
-  [/рыб|акул|fish/, "fish"],
-  [/лев|lion/, "lion"],
-  [/слон|elephant/, "elephant"],
-  [/лягуш|frog/, "frog"],
-  [/бабоч|butterfly/, "butterfly"],
-  [/лошад|конь|horse/, "horse"],
-  [/цвет|роз|flower/, "flower"],
-  [/дерев|forest|tree/, "tree"],
-  [/дом|house/, "house"],
-  [/машин|автомобил|car/, "car"],
-  [/футбол|мяч|soccer|football/, "football"],
-  [/космос|луна|планет|space/, "space"],
-  [/море|океан|пляж|beach|ocean/, "sea"],
-  [/закат|солнц|sunset/, "sunset"],
-  [/робот|robot/, "robot"],
-  [/человек|person/, "person"]
+  [/роналд|криштиан|cr7/, "Cristiano Ronaldo", "Криштиану Роналду"],
+  [/месси|messi/, "Lionel Messi", "Месси"],
+  [/бургер|гамбургер|чизбургер|burger/, "hamburger", "бургер"],
+  [/кот|кошк|котен|kitten|\bcat\b/, "cat", "кот"],
+  [/собак|щенок|puppy|\bdog\b/, "dog", "собака"],
+  [/кролик|заяц|bunny|rabbit/, "rabbit", "кролик"],
+  [/лиса|лису|лисы|\bfox\b/, "fox", "лиса"],
+  [/медвед|bear/, "bear", "медведь"],
+  [/птиц|попуга|сова|bird/, "bird", "птица"],
+  [/рыб|акул|fish/, "fish", "рыба"],
+  [/лев|lion/, "lion", "лев"],
+  [/слон|elephant/, "elephant", "слон"],
+  [/лягуш|frog/, "frog", "лягушка"],
+  [/бабоч|butterfly/, "butterfly", "бабочка"],
+  [/лошад|конь|horse/, "horse", "лошадь"],
+  [/цвет|роза|flower/, "flower", "цветок"],
+  [/дерев|forest|tree/, "tree", "дерево"],
+  [/дом|house/, "house", "дом"],
+  [/машин|автомобил|car/, "car", "машина"],
+  [/футбол|мяч|soccer|football/, "football", "футбол"],
+  [/космос|луна|планет|space/, "space", "космос"],
+  [/море|океан|пляж|beach|ocean/, "sea", "море"],
+  [/закат|солнц|sunset/, "sunset", "закат"],
+  [/робот|robot/, "robot", "робот"],
+  [/человек|person/, "person", "человек"]
 ];
 
-function photoQuery(prompt) {
+export function photoSubjects(prompt) {
   const p = normalize(prompt);
-  for (const [pattern, query] of PHOTO_QUERIES) {
-    if (pattern.test(p)) return query;
+  const found = [];
+  for (const [pattern, query, label] of PHOTO_QUERIES) {
+    const match = p.match(pattern);
+    if (!match || found.some(item => item.query === query)) continue;
+    found.push({ query, label, at: match.index, known: true });
   }
-  return p.replace(/нарисуй|картинк\w*|фото\w*|рисунок\w*/g, "").trim() || "landscape";
+  found.sort((a, b) => a.at - b.at);
+  if (found.length) return found.slice(0, 3);
+  const rest = p.replace(/нарисуй|картинк\w*|фото\w*|рисунок\w*/g, "").trim();
+  return rest ? [{ query: rest, label: rest, at: 0, known: false }] : [{ query: "landscape", label: "пейзаж", at: 0, known: false }];
 }
 
 async function findPhoto(query) {
@@ -1073,10 +1080,38 @@ async function findPhoto(query) {
   return photo.info.thumburl || photo.info.url;
 }
 
+async function collage(urls) {
+  const images = [];
+  for (const url of urls) {
+    images.push(await loadImage(url, true));
+  }
+  const canvas = document.createElement("canvas");
+  const width = Math.round(960 / images.length);
+  canvas.width = width * images.length;
+  canvas.height = 640;
+  const ctx = canvas.getContext("2d");
+  images.forEach((img, index) => {
+    drawCover(ctx, img, index * width, 0, width, canvas.height);
+  });
+  return canvas.toDataURL("image/jpeg", 0.86);
+}
+
 export async function generateImage(prompt) {
-  const url = await findPhoto(photoQuery(prompt));
-  return {
-    dataUrl: url,
-    theme: "photo"
-  };
+  const subjects = photoSubjects(prompt);
+  const urls = [];
+  for (const subject of subjects) {
+    try {
+      urls.push(await findPhoto(subject.query));
+    } catch (error) {
+      console.warn("Фото не найдено:", subject.query, error);
+    }
+  }
+  if (!urls.length) throw new Error("no photo");
+  if (urls.length === 1) return { dataUrl: urls[0], theme: "photo" };
+  try {
+    return { dataUrl: await collage(urls), theme: "photo" };
+  } catch (error) {
+    console.warn("Коллаж не собрался:", error);
+    return { dataUrl: urls[0], theme: "photo" };
+  }
 }

@@ -1,5 +1,5 @@
 
-import { generateImage, wantsImage, extractImagePrompt } from "./generate.js?v=20";
+import { generateImage, wantsImage, extractImagePrompt, photoSubjects } from "./generate.js?v=21";
 import { trySolve } from "./knowledge.js?v=19";
 
 const NAME_KEY = "pupik_user_name";
@@ -216,7 +216,8 @@ function addMessageToScreen(role, content, image) {
   if (image) {
     const picture = document.createElement("img");
     picture.className = "message-image";
-    picture.alt = content || "рисунок";
+    picture.alt = "фото";
+    picture.referrerPolicy = "no-referrer";
     picture.src = image;
     body.appendChild(picture);
   }
@@ -598,18 +599,19 @@ function fallbackAnswer() {
 
 function drawingCaption(question) {
   const q = question.toLowerCase().replace(/ё/g, "е");
-  const name = userName || "";
-  const aboutMe = /меня|я\b|себя/.test(q);
-  const ronaldo = /роналд|криштиан|cr7/.test(q);
-
   if (/учу русск|изучаю русск/.test(q)) remember("учит русский");
-
-  if (ronaldo && aboutMe) {
-    return `${name ? name + ", в" : "В"}от фото Криштиану Роналду. ${/русск/.test(q) ? "Раз учишь русский, повтори: «Я учусь говорить по-русски»." : ""}`.trim();
-  }
-  if (ronaldo) return "Вот фото Криштиану Роналду.";
-  if (/бургер|гамбургер|burger/.test(q)) return "Вот фото бургера.";
+  const labels = photoSubjects(question).map(item => item.label);
+  if (labels.length > 1) return `Вот фото: ${labels.join(" и ")}.`;
+  if (labels.length === 1) return `Вот фото: ${labels[0]}.`;
   return "Вот фото.";
+}
+
+function imageFollowUp(question) {
+  const q = question.toLowerCase().replace(/ё/g, "е");
+  if (wantsImage(question) || !/где|нет|не вижу|потеря/.test(q)) return "";
+  if (!photoSubjects(q).some(item => item.known)) return "";
+  const last = [...chatHistory].reverse().find(item => item.role === "user" && wantsImage(item.content));
+  return last ? `${last.content} ${question}` : question;
 }
 
 async function sendMessage(text) {
@@ -648,11 +650,20 @@ async function sendMessage(text) {
     let answer = "";
     let image = "";
 
-    if (wantsImage(question)) {
+    const follow = imageFollowUp(question);
+    if (wantsImage(question) || follow) {
+      const prompt = follow || extractImagePrompt(question);
       try {
-        const drawn = await generateImage(extractImagePrompt(question));
+        const drawn = await generateImage(prompt);
         image = drawn.dataUrl;
-        answer = drawingCaption(question);
+        const caption = drawingCaption(prompt);
+        if (follow) {
+          const missing = photoSubjects(question)[0]?.label || "это";
+          const titled = missing.charAt(0).toUpperCase() + missing.slice(1);
+          answer = `${titled} тоже на фото. ${caption}`;
+        } else {
+          answer = caption;
+        }
       } catch (error) {
         console.warn("Фото не найдено:", error);
         answer = "Не нашёл фото. Напиши короче: кот, бургер или Роналду.";
