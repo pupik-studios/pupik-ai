@@ -1,5 +1,5 @@
 
-import { generateImage, wantsImage, extractImagePrompt, photoSubjects } from "./generate.js?v=27";
+import { generateImage, wantsImage, extractImagePrompt, photoSubjects } from "./generate.js?v=28";
 import { trySolve } from "./knowledge.js?v=19";
 
 const NAME_KEY = "pupik_user_name";
@@ -673,7 +673,9 @@ async function sendMessage(text) {
         }
       } catch (error) {
         console.warn("Фото не найдено:", error);
-        answer = "Не нашёл фото по этим словам.";
+        answer = error?.message && error.message !== "no photo"
+          ? error.message
+          : "Не нашёл фото по этим словам.";
       }
     } else {
       answer = localAnswer(question);

@@ -1010,7 +1010,7 @@ export function extractImagePrompt(text) {
  */
 const PHOTO_QUERIES = [
   [/рональдин|ronaldinho/, "Ronaldinho", "Роналдиньо", /ronaldinho/i],
-  [/роналд|криштиан|cr7/, "Cristiano Ronaldo", "Криштиану Роналду", /ronaldo/i],
+  [/рона+л*д|криштиан|cr7/, "Cristiano Ronaldo", "Криштиану Роналду", /ronaldo/i],
   [/месси|messi/, "Lionel Messi", "Месси", /messi/i],
   [/бургер|гамбургер|чизбургер|burger/, "hamburger", "бургер", /burger|hamburger/i],
   [/бобр|beaver/, "beaver", "бобр", /beaver|castor/i],
@@ -1199,7 +1199,10 @@ export async function generateImage(prompt) {
       return new RegExp(phrases[index].split(/\s+/).pop(), "i").test(item.title);
     }));
     const choice = together[0];
-    if (!choice) throw new Error("no photo");
+    if (!choice) {
+      const names = subjects.map(subject => subject.label).join(" и ");
+      throw new Error(`Нет одного фото, где ${names} вместе.`);
+    }
     rememberPhoto(choice.url);
     return { dataUrl: choice.url, theme: "photo" };
   }
