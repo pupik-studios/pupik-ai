@@ -138,6 +138,19 @@ button {
   font-weight: 800;
 }
 
+.brand-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+}
+
+.brand-text small {
+  margin-top: 2px;
+  color: #9294a2;
+  font-size: 11px;
+  font-weight: 500;
+}
+
 .brand-icon, .profile-icon {
   display: grid;
   place-items: center;

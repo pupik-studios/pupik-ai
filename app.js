@@ -1,34 +1,10 @@
 
-import { pipeline, env } from
-  "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1";
-import { generateImage, wantsImage, extractImagePrompt } from "./generate.js?v=18";
-import { trySolve } from "./knowledge.js?v=18";
-
-env.useBrowserCache = true;
-
-const MODEL = "onnx-community/Qwen2.5-0.5B-Instruct";
+import { generateImage, wantsImage, extractImagePrompt } from "./generate.js?v=19";
+import { trySolve } from "./knowledge.js?v=19";
 
 const NAME_KEY = "pupik_user_name";
 
 let userName = localStorage.getItem(NAME_KEY) || "";
-
-function systemPrompt() {
-  return `
-Ты — Pupik AI на модели Qwen.
-Создатель: Владимиров Роберт Павлович.
-Пользователя зовут ${userName || "друг"}.
-- Отвечай на вопросы пользователя.
-- Объясняй сложные темы простыми словами.
-- Помогай с программированием, математикой и идеями.
-- Общайся дружелюбно и естественно.
-- Не оценивай вопросы пользователя.
-- Не ставь баллы и рейтинги.
-- Не проверяй качество вопросов.
-- Не выдумывай факты.
-- Если пользователь пишет по-русски, отвечай по-русски.
-- Давай понятные и полезные ответы.
-`;
-}
 
 const sidebar = document.getElementById("sidebar");
 const statusText = document.getElementById("statusText");
@@ -43,8 +19,6 @@ const newChatButton = document.getElementById("newChat");
 const menuButton = document.getElementById("menuButton");
 const titleElement = document.querySelector(".top-title");
 
-let ai = null;
-let loadingPromise = null;
 let generating = false;
 let chatHistory = [];
 let currentChatId = null;
@@ -464,69 +438,6 @@ function afterBoot() {
   showApp();
 }
 
-async function loadAI() {
-  if (ai) return ai;
-  if (loadingPromise) return loadingPromise;
-
-  setBoot("Загружаюсь", 6);
-
-  loadingPromise = (async () => {
-    try {
-      console.log("Pupik AI: подготовка модели", MODEL);
-
-      ai = await pipeline("text-generation", MODEL, {
-        dtype: "q4",
-        device: "wasm",
-        progress_callback: info => {
-          console.log("Pupik progress:", info);
-          if (info.status === "progress" && typeof info.progress === "number") {
-            setBoot("Загружаюсь", info.progress);
-          } else if (info.status === "initiate" || info.status === "download") {
-            setBoot("Загружаюсь", 8);
-          }
-        }
-      });
-
-      setStatus(true);
-      setBoot("Загружаюсь", 100);
-      console.log("Pupik AI готов!");
-
-      return ai;
-
-    } catch (error) {
-      ai = null;
-      console.error("Ошибка модели:", error);
-      setBoot("Загружаюсь", 100);
-      throw error;
-
-    } finally {
-      loadingPromise = null;
-      afterBoot();
-    }
-  })();
-
-  return loadingPromise;
-}
-
-function extractAnswer(result) {
-  const generated = result?.[0]?.generated_text;
-
-  if (typeof generated === "string") {
-    return generated;
-  }
-
-  if (Array.isArray(generated)) {
-    const last = [...generated].reverse().find(item =>
-      item?.role === "assistant" &&
-      typeof item.content === "string"
-    );
-
-    return last?.content || "";
-  }
-
-  return "";
-}
-
 const NOTES_KEY = "pupik_notes";
 
 function loadNotes() {
@@ -701,15 +612,6 @@ function drawingCaption(question) {
   return "Вот рисунок.";
 }
 
-function withTimeout(promise, ms) {
-  return Promise.race([
-    promise,
-    new Promise((_, reject) => {
-      setTimeout(() => reject(new Error("timeout")), ms);
-    })
-  ]);
-}
-
 async function sendMessage(text) {
   const question = text.trim();
 
@@ -754,27 +656,6 @@ async function sendMessage(text) {
       answer = localAnswer(question);
     }
 
-    if (!answer && !image && ai) {
-      try {
-        const prompt = [
-          { role: "system", content: systemPrompt() },
-          ...chatHistory.slice(-8).map(item => ({
-            role: item.role === "assistant" ? "assistant" : "user",
-            content: item.content
-          }))
-        ];
-        const result = await withTimeout(ai(prompt, {
-          max_new_tokens: 80,
-          temperature: 0.7,
-          do_sample: true,
-          top_p: 0.9,
-          repetition_penalty: 1.08
-        }), 8000);
-        answer = extractAnswer(result).trim();
-      } catch (error) {
-        console.warn("Модель не успела, отвечаю сразу:", error);
-      }
-    }
     if (!answer && !image) answer = fallbackAnswer();
 
     removeTyping();
@@ -787,8 +668,6 @@ async function sendMessage(text) {
 
     addMessageToScreen("assistant", answer, image);
     saveCurrentChat();
-
-    if (ai) setStatus(true);
 
   } catch (error) {
     removeTyping();
@@ -874,7 +753,12 @@ registerForm?.addEventListener("submit", event => {
 });
 
 startBootGame();
-loadAI();
-setTimeout(afterBoot, 1800);
+let bootPercent = 8;
+const bootTimer = setInterval(() => {
+  bootPercent = Math.min(100, bootPercent + 18);
+  setBoot("Загружаюсь", bootPercent);
+  if (bootPercent >= 100) clearInterval(bootTimer);
+}, 200);
+setTimeout(afterBoot, 1200);
 
 console.log("Pupik AI запущен.");
