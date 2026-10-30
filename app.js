@@ -519,7 +519,7 @@ async function sendMessage(text) {
     if (wantsImage(question)) {
       const drawn = await generateImage(extractImagePrompt(question));
       image = drawn.dataUrl;
-      answer = "Готово.";
+      answer = "Вот, нарисовал.";
     } else if (ai) {
       try {
         const prompt = [
