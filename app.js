@@ -673,6 +673,9 @@ function localAnswer(question) {
   const facts = factAnswer(q);
   if (facts) return facts;
 
+  const aboutPhoto = photoReaction(q);
+  if (aboutPhoto) return aboutPhoto;
+
   const solved = trySolve(question);
   if (solved?.answer && !/нарисуй/.test(q)) return solved.answer;
 
@@ -698,6 +701,22 @@ function drawingCaption(question) {
   }
   if (labels.length === 1) return again ? `Вот другое фото: ${labels[0]}.` : `Вот фото: ${labels[0]}.`;
   return "Вот фото.";
+}
+
+function previousImagePrompt() {
+  const users = chatHistory.filter(item => item.role === "user");
+  for (let i = users.length - 2; i >= 0; i -= 1) {
+    if (wantsImage(users[i].content)) return users[i].content;
+  }
+  return "";
+}
+
+function photoReaction(q) {
+  if (!/плач/.test(q)) return "";
+  const prompt = previousImagePrompt();
+  const label = prompt ? photoSubjects(prompt)[0]?.label : "";
+  if (!label) return "";
+  return named(`на этом фото ${label} не плачет: он улыбается.`);
 }
 
 function imageFollowUp(question) {
