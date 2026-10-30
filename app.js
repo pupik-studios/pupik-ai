@@ -6,212 +6,225 @@ const MODEL = "onnx-community/Qwen2.5-1.5B-Instruct";
 
 env.useBrowserCache = true;
 
-const $ = id => document.getElementById(id);
+// Элементы страницы
+const status = document.getElementById("status");
+const welcome = document.getElementById("welcome");
+const messages = document.getElementById("messages");
+const form = document.getElementById("form");
+const promptInput = document.getElementById("prompt");
+const sendButton = document.getElementById("send");
+const newChatButton = document.getElementById("newChat");
 
-const loadingScreen = $("loadingScreen");
-const registerScreen = $("registerScreen");
-const chatApp = $("chatApp");
-const loadingPercent = $("loadingPercent");
-const progressBar = $("progressBar");
-const loadingStatus = $("loadingStatus");
-const status = $("status");
-
-const welcome = $("welcome");
-const messages = $("messages");
-const form = $("form");
-const promptInput = $("prompt");
-const sendButton = $("send");
-const newChatButton = $("newChat");
-
+// Состояние
 let ai = null;
 let loading = false;
-let busy = false;
+let generating = false;
 let history = [];
 
 const SYSTEM_PROMPT = `
 Ты — Pupik AI, самостоятельный искусственный интеллект.
-Общайся дружелюбно и естественно.
-Отвечай на вопросы, объясняй темы, помогай с идеями и программированием.
-Не оценивай пользователя и его вопросы.
-Не ставь баллы и рейтинги.
-Не утверждай, что знаешь то, чего не знаешь.
-Если пользователь пишет на русском, отвечай на русском.
-Пиши понятно и по существу.
+
+Твои задачи:
+- Отвечай на вопросы пользователя.
+- Объясняй сложные темы простыми словами.
+- Помогай с программированием, идеями и обучением.
+- Общайся дружелюбно.
+- Не оценивай пользователя и его вопросы.
+- Не ставь баллы и рейтинги.
+- Не проверяй качество вопросов.
+- Не ищи ответы в интернете.
+- Не утверждай, что знаешь то, чего не знаешь.
+- Если пользователь пишет по-русски, отвечай по-русски.
+- Отвечай понятно и по существу.
 `;
 
-function setProgress(value, message) {
-  const percent = Math.max(0, Math.min(100, Math.round(value)));
-  loadingPercent.textContent = percent + "%";
-  progressBar.style.width = percent + "%";
-  if (message) loadingStatus.textContent = message;
+// Определяем Safari
+function isSafari() {
+  const ua = navigator.userAgent;
+
+  return (
+    /iPhone|iPad|iPod/.test(ua) ||
+    (/Safari/.test(ua) &&
+      !/Chrome|CriOS|Edg|OPR|Firefox/.test(ua))
+  );
 }
 
-function showRegistrationOrChat() {
-  loadingScreen.hidden = true;
-  window.pupikStopGame?.();
-
-  const nickname = localStorage.getItem("pupik-nickname");
-
-  if (nickname) {
-    openChat(nickname);
-  } else {
-    registerScreen.hidden = false;
-    $("nickname").focus();
+// Статус
+function setStatus(text) {
+  if (status) {
+    status.textContent = text;
   }
 }
 
-function openChat(nickname) {
-  registerScreen.hidden = true;
-  chatApp.hidden = false;
+// Добавление сообщения
+function addMessage(text, role) {
+  const element = document.createElement("div");
 
-  $("profileName").textContent = nickname;
-  $("welcomeName").textContent = nickname;
+  element.className = `message ${role}`;
+  element.textContent = text;
 
-  restoreHistory();
+  messages.appendChild(element);
+
+  messages.scrollTop = messages.scrollHeight;
+
+  return element;
 }
 
-$("registerForm").addEventListener("submit", event => {
-  event.preventDefault();
-
-  const nickname = $("nickname").value.trim();
-
-  if (nickname.length < 2) {
-    $("nickname").setCustomValidity("Введи минимум 2 символа");
-    $("nickname").reportValidity();
-    return;
+// Приветственный экран
+function updateWelcome() {
+  if (welcome) {
+    welcome.style.display = history.length ? "none" : "flex";
   }
+}
 
-  $("nickname").setCustomValidity("");
-  localStorage.setItem("pupik-nickname", nickname);
-  openChat(nickname);
-});
-
+// Загрузка нейросети
 async function loadAI() {
   if (ai || loading) return;
 
   loading = true;
-  setProgress(0, "Подготовка нейросети…");
 
-  const progress = info => {
-    if (info.status === "progress" &&
-        typeof info.progress === "number") {
-      setProgress(info.progress, "Загрузка нейросети…");
-    } else if (info.status === "downloading") {
-      loadingStatus.textContent = "Скачивание файлов модели…";
-    } else if (info.status === "done") {
-      loadingStatus.textContent = "Подготовка модели…";
+  setStatus("Подготовка нейросети…");
+
+  // Safari сразу запускается через WASM.
+  const device = isSafari()
+    ? "wasm"
+    : (navigator.gpu ? "webgpu" : "wasm");
+
+  // Прогресс загрузки отдельных файлов.
+  const fileProgress = new Map();
+
+  const progress = (info) => {
+    const file = info.file || "Файл модели";
+
+    if (
+      info.status === "progress" &&
+      typeof info.progress === "number"
+    ) {
+      fileProgress.set(file, info.progress);
+
+      const percent = Math.round(info.progress);
+
+      setStatus(
+        `Загрузка: ${file} — ${percent}%`
+      );
     }
-  };
 
-  const options = {
-    dtype: "q4",
-    progress_callback: progress
+    if (info.status === "downloading") {
+      setStatus(`Скачивание: ${file}`);
+    }
+
+    if (info.status === "done") {
+      setStatus(`Файл загружен: ${file}`);
+    }
   };
 
   try {
-    if (navigator.gpu) {
-      try {
-        ai = await pipeline("text-generation", MODEL, {
-          ...options,
-          device: "webgpu"
-        });
-      } catch (error) {
-        console.warn("WebGPU недоступен, пробуем WASM:", error);
+    setStatus(
+      isSafari()
+        ? "Загрузка для Safari через WASM…"
+        : "Загрузка нейросети…"
+    );
+
+    ai = await pipeline(
+      "text-generation",
+      MODEL,
+      {
+        dtype: "q4",
+        device,
+        progress_callback: progress
       }
-    }
+    );
 
-    if (!ai) {
-      ai = await pipeline("text-generation", MODEL, {
-        ...options,
-        device: "wasm"
-      });
-    }
-
-    setProgress(100, "Pupik AI загружен!");
-    status.textContent = "Pupik AI готов";
-
-    setTimeout(showRegistrationOrChat, 500);
+    setStatus("Pupik AI готов к работе!");
 
   } catch (error) {
     console.error("Ошибка загрузки модели:", error);
-    loadingStatus.textContent =
-      "Не удалось загрузить модель. Проверь интернет и попробуй снова.";
 
-    const retry = document.createElement("button");
-    retry.textContent = "Повторить загрузку";
-    retry.className = "retry-button";
-    retry.addEventListener("click", () => {
-      retry.remove();
-      loading = false;
-      loadAI();
-    });
+    ai = null;
 
-    loadingScreen.querySelector(".game-content").appendChild(retry);
+    setStatus(
+      "Не удалось загрузить модель. Проверь интернет и память устройства."
+    );
 
   } finally {
     loading = false;
   }
 }
 
-function addMessage(text, role) {
-  const wrapper = document.createElement("div");
-  wrapper.className = `message ${role}`;
-
-  const label = document.createElement("div");
-  label.className = "role";
-  label.textContent = role === "user"
-    ? localStorage.getItem("pupik-nickname") || "Ты"
-    : "Pupik AI";
-
-  const bubble = document.createElement("div");
-  bubble.className = "bubble";
-  bubble.textContent = text;
-
-  wrapper.append(label, bubble);
-  messages.appendChild(wrapper);
-  wrapper.scrollIntoView({ behavior: "smooth", block: "end" });
-}
-
-function updateWelcome() {
-  welcome.hidden = history.length > 0;
-}
-
+// Получение текста ответа
 function extractAnswer(result) {
   const generated = result?.[0]?.generated_text;
 
-  if (typeof generated === "string") return generated;
+  if (typeof generated === "string") {
+    return generated;
+  }
 
   if (Array.isArray(generated)) {
-    return generated[generated.length - 1]?.content || "";
+    const last = generated[generated.length - 1];
+
+    return last?.content || "";
   }
 
   return "";
 }
 
+// Сохранение истории
+function saveHistory() {
+  try {
+    localStorage.setItem(
+      "pupik-history",
+      JSON.stringify(history)
+    );
+  } catch (error) {
+    console.warn("Не удалось сохранить историю:", error);
+  }
+}
+
+// Отправка сообщения
 async function sendMessage(text) {
   const question = text.trim();
 
-  if (!question || busy) return;
+  if (!question || loading || generating) return;
+
+  addMessage(question, "user");
+
+  history.push({
+    role: "user",
+    content: question
+  });
+
+  promptInput.value = "";
+
+  updateWelcome();
+
+  // Загружаем модель, если она ещё не загружена.
+  if (!ai) {
+    await loadAI();
+  }
 
   if (!ai) {
-    addMessage("Нейросеть ещё загружается. Подожди окончания загрузки.", "assistant");
+    addMessage(
+      "Не получилось загрузить нейросеть. Попробуй обновить страницу.",
+      "assistant"
+    );
+
     return;
   }
 
-  busy = true;
+  generating = true;
+
   sendButton.disabled = true;
   promptInput.disabled = true;
 
-  addMessage(question, "user");
-  history.push({ role: "user", content: question });
-
-  promptInput.value = "";
-  updateWelcome();
-  status.textContent = "Pupik AI думает…";
+  setStatus("Pupik AI думает…");
 
   try {
     const chat = [
-      { role: "system", content: SYSTEM_PROMPT },
+      {
+        role: "system",
+        content: SYSTEM_PROMPT
+      },
+
       ...history.slice(-12)
     ];
 
@@ -223,49 +236,87 @@ async function sendMessage(text) {
       repetition_penalty: 1.08
     });
 
-    const answer = extractAnswer(result).trim() ||
-      "Не получилось сформировать ответ. Попробуй ещё раз.";
+    const answer =
+      extractAnswer(result).trim() ||
+      "Не получилось сформировать ответ. Попробуй задать вопрос иначе.";
 
     addMessage(answer, "assistant");
-    history.push({ role: "assistant", content: answer });
 
-    localStorage.setItem("pupik-history", JSON.stringify(history));
-    status.textContent = "Pupik AI готов";
+    history.push({
+      role: "assistant",
+      content: answer
+    });
+
+    saveHistory();
+
+    setStatus("Pupik AI готов к работе!");
 
   } catch (error) {
     console.error("Ошибка генерации:", error);
-    addMessage("Произошла ошибка при генерации ответа. Попробуй ещё раз.", "assistant");
-    status.textContent = "Ошибка генерации";
+
+    addMessage(
+      "Произошла ошибка при создании ответа. Попробуй ещё раз.",
+      "assistant"
+    );
+
+    setStatus("Ошибка генерации.");
 
   } finally {
-    busy = false;
+    generating = false;
+
     sendButton.disabled = false;
     promptInput.disabled = false;
+
     promptInput.focus();
   }
 }
 
-form.addEventListener("submit", event => {
+// Отправка через форму
+form.addEventListener("submit", (event) => {
   event.preventDefault();
+
   sendMessage(promptInput.value);
 });
 
-promptInput.addEventListener("keydown", event => {
-  if (event.key === "Enter" && !event.shiftKey) {
+// Enter отправляет, Shift + Enter переносит строку
+promptInput.addEventListener("keydown", (event) => {
+  if (
+    event.key === "Enter" &&
+    !event.shiftKey
+  ) {
     event.preventDefault();
+
     form.requestSubmit();
   }
 });
 
+// Новый чат
 newChatButton.addEventListener("click", () => {
-  if (busy) return;
+  if (loading || generating) return;
 
   history = [];
+
   localStorage.removeItem("pupik-history");
+
   messages.innerHTML = "";
+
   updateWelcome();
+
+  setStatus(
+    ai
+      ? "Pupik AI готов к работе!"
+      : "Нейросеть ещё не загружена."
+  );
 });
 
+// Кнопки примеров
+document.querySelectorAll(".suggestion").forEach((button) => {
+  button.addEventListener("click", () => {
+    sendMessage(button.textContent);
+  });
+});
+
+// Восстановление истории
 function restoreHistory() {
   try {
     const saved = JSON.parse(
@@ -273,21 +324,26 @@ function restoreHistory() {
     );
 
     if (Array.isArray(saved)) {
-      history = saved.filter(item =>
+      history = saved.filter((item) =>
         item &&
         (item.role === "user" || item.role === "assistant") &&
         typeof item.content === "string"
       );
 
-      history.forEach(item => addMessage(item.content, item.role));
+      for (const item of history) {
+        addMessage(item.content, item.role);
+      }
     }
+
   } catch (error) {
-    console.warn("Не удалось восстановить историю:", error);
+    console.warn("Ошибка восстановления истории:", error);
+
     history = [];
   }
 
   updateWelcome();
 }
 
+// Запуск
+restoreHistory();
 loadAI();
-
