@@ -227,74 +227,130 @@ function startBootGame() {
   const ctx = canvas.getContext("2d");
   const w = canvas.width;
   const h = canvas.height;
-  let y = h * 0.45;
-  let vy = 0;
+  const keys = new Set();
+  const player = { x: 150, y: h / 2, r: 14 };
+  const keeper = { x: w - 58, y: h / 2, r: 14 };
+  const ball = { x: 230, y: h / 2, vx: 0, vy: 0, r: 8 };
   let score = 0;
-  let best = 0;
-  const g = 0.35;
+  let cool = 0;
 
-  function kick() {
-    vy = -8.2;
-    score += 1;
-    if (score > best) best = score;
+  function resetBall() {
+    ball.x = 230;
+    ball.y = h / 2;
+    ball.vx = 0;
+    ball.vy = 0;
+    player.x = 150;
+    player.y = h / 2;
   }
-
-  canvas.addEventListener("pointerdown", (event) => {
-    event.preventDefault();
-    kick();
-  });
 
   window.addEventListener("keydown", (event) => {
     if (boot?.hidden) return;
-    if (event.code === "Space" || event.code === "ArrowUp") {
+    if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Space"].includes(event.code)) {
       event.preventDefault();
-      kick();
     }
+    keys.add(event.key.toLowerCase());
   });
+  window.addEventListener("keyup", (event) => {
+    keys.delete(event.key.toLowerCase());
+  });
+
+  function down(name) {
+    return keys.has(name);
+  }
 
   function frame() {
     if (boot?.hidden) return;
-    vy += g;
-    y += vy;
-    if (y > h - 22) {
-      y = h - 22;
-      vy = 0;
-      score = 0;
+    let mx = 0;
+    let my = 0;
+    if (down("arrowleft") || down("a")) mx -= 1;
+    if (down("arrowright") || down("d")) mx += 1;
+    if (down("arrowup") || down("w")) my -= 1;
+    if (down("arrowdown") || down("s")) my += 1;
+    const len = Math.hypot(mx, my) || 1;
+    player.x = Math.min(w - 30, Math.max(24, player.x + (mx / len) * 3.4));
+    player.y = Math.min(h - 24, Math.max(24, player.y + (my / len) * 3.4));
+
+    const dx = ball.x - player.x;
+    const dy = ball.y - player.y;
+    const dist = Math.hypot(dx, dy);
+    if (dist < player.r + ball.r + 4 && cool <= 0) {
+      const kick = dist || 1;
+      ball.vx = (dx / kick) * 7.2 + mx * 1.4;
+      ball.vy = (dy / kick) * 7.2 + my * 1.4;
+      cool = 8;
     }
-    if (y < 18) {
-      y = 18;
-      vy = 1;
+    if (cool > 0) cool -= 1;
+
+    ball.x += ball.vx;
+    ball.y += ball.vy;
+    ball.vx *= 0.985;
+    ball.vy *= 0.985;
+    if (ball.y < ball.r || ball.y > h - ball.r) ball.vy *= -1;
+    ball.y = Math.min(h - ball.r, Math.max(ball.r, ball.y));
+    if (ball.x < ball.r) {
+      ball.x = ball.r;
+      ball.vx *= -0.6;
     }
 
-    ctx.fillStyle = "#1a6b3c";
+    const goalTop = h * 0.32;
+    const goalBot = h * 0.68;
+    keeper.y += Math.sign(ball.y - keeper.y) * 1.7;
+    keeper.y = Math.min(goalBot - 8, Math.max(goalTop + 8, keeper.y));
+    const kd = Math.hypot(ball.x - keeper.x, ball.y - keeper.y);
+    if (kd < keeper.r + ball.r + 2) {
+      ball.vx = -5.5;
+      ball.vy = (ball.y - keeper.y) * 0.2;
+    }
+
+    if (ball.x > w - 16 && ball.y > goalTop && ball.y < goalBot) {
+      score += 1;
+      resetBall();
+    } else if (ball.x > w - ball.r) {
+      ball.x = w - ball.r;
+      ball.vx *= -0.7;
+    }
+
+    ctx.fillStyle = "#147a3d";
     ctx.fillRect(0, 0, w, h);
-    ctx.strokeStyle = "rgba(255,255,255,0.18)";
-    ctx.lineWidth = 2;
-    for (let x = 40; x < w; x += 46) {
-      ctx.beginPath();
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x, h);
-      ctx.stroke();
+    ctx.fillStyle = "#178a46";
+    for (let i = 0; i < 8; i += 1) {
+      if (i % 2 === 0) ctx.fillRect((w / 8) * i, 0, w / 8, h);
     }
-    ctx.strokeStyle = "rgba(255,255,255,0.45)";
-    ctx.strokeRect(18, 14, w - 36, h - 28);
+    ctx.strokeStyle = "rgba(255,255,255,0.85)";
+    ctx.lineWidth = 3;
+    ctx.strokeRect(12, 12, w - 24, h - 24);
+    ctx.beginPath();
+    ctx.moveTo(w / 2, 12);
+    ctx.lineTo(w / 2, h - 12);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(w / 2, h / 2, 48, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.strokeRect(w - 70, goalTop, 58, goalBot - goalTop);
+    ctx.fillStyle = "rgba(255,255,255,0.15)";
+    ctx.fillRect(w - 22, goalTop, 10, goalBot - goalTop);
 
-    ctx.fillStyle = "#f4f1ea";
+    ctx.fillStyle = "#f5f7fb";
     ctx.beginPath();
-    ctx.arc(w / 2, y, 16, 0, Math.PI * 2);
+    ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI * 2);
     ctx.fill();
-    ctx.strokeStyle = "#1a1a1a";
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.arc(w / 2, y, 16, 0, Math.PI * 2);
+    ctx.strokeStyle = "#222";
+    ctx.lineWidth = 1;
     ctx.stroke();
 
-    ctx.fillStyle = "#f4f1ea";
-    ctx.font = "700 16px sans-serif";
+    ctx.fillStyle = "#2f6bff";
+    ctx.beginPath();
+    ctx.arc(player.x, player.y, player.r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#ff4d4d";
+    ctx.beginPath();
+    ctx.arc(keeper.x, keeper.y, keeper.r, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = "#fff";
+    ctx.font = "700 22px sans-serif";
     ctx.textAlign = "left";
-    ctx.fillText(String(score), 16, 28);
-    ctx.textAlign = "right";
-    ctx.fillText(String(best), w - 16, 28);
+    ctx.fillText(String(score), 22, 40);
 
     requestAnimationFrame(frame);
   }

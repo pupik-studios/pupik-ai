@@ -36,6 +36,10 @@ body {
   text-align: center;
 }
 
+#boot .gate-card {
+  width: min(680px, 100%);
+}
+
 .gate-card h1 {
   margin: 8px 0 6px;
   font-size: clamp(28px, 5vw, 40px);
@@ -88,13 +92,12 @@ body {
 
 #bootGame {
   display: block;
-  width: min(360px, 100%);
+  width: 100%;
   height: auto;
-  margin: 18px auto 0;
+  margin: 16px auto 0;
   border-radius: 16px;
-  background: #1a6b3c;
-  cursor: pointer;
-  touch-action: manipulation;
+  background: #147a3d;
+  touch-action: none;
 }
 
 .boot-hint {
