@@ -4,7 +4,7 @@ import { pipeline, env } from
 
 env.useBrowserCache = true;
 
-const MODEL = "onnx-community/Qwen2.5-1.5B-Instruct";
+const MODEL = "onnx-community/Qwen2.5-0.5B-Instruct";
 
 const NAME_KEY = "pupik_user_name";
 
@@ -64,7 +64,7 @@ try {
 
 // Пользователь всегда видит только название агента
 function setStatus(online = false) {
-  statusText.textContent = "Pupik AI";
+  statusText.textContent = online ? "Pupik AI" : "Загружаюсь";
   statusDot.classList.toggle("online", online);
 }
 
@@ -391,14 +391,11 @@ async function loadAI() {
 
   loadingPromise = (async () => {
     try {
-      const device = navigator.gpu ? "webgpu" : "wasm";
-
       console.log("Pupik AI: подготовка модели", MODEL);
-      console.log("Устройство:", device);
 
       ai = await pipeline("text-generation", MODEL, {
         dtype: "q4",
-        device,
+        device: "wasm",
         progress_callback: info => {
           console.log("Pupik progress:", info);
           if (info.status === "progress" && typeof info.progress === "number") {
@@ -605,5 +602,6 @@ registerForm?.addEventListener("submit", event => {
 
 startBootGame();
 loadAI();
+setTimeout(afterBoot, 1800);
 
 console.log("Pupik AI запущен.");
