@@ -1,276 +1,113 @@
 
-
 <!DOCTYPE html>
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#101114">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Pupik AI</title>
-  <link rel="stylesheet" href="./style.css">
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-<!-- ЗАГРУЗКА + ИГРА -->
-<section id="loadingScreen" class="screen">
-  <header class="loading-header">
-    <div class="brand"><span class="logo">P</span> Pupik AI</div>
-    <div class="percent" id="loadingPercent">0%</div>
-  </header>
+<div class="app">
 
-  <div class="progress-track">
-    <div id="progressBar" class="progress-bar"></div>
-  </div>
-
-  <main class="game-content">
-    <div class="game-title">PUPIK RUN</div>
-    <div class="game-subtitle">Прыгай через препятствия, пока загружается Pupik AI</div>
-
-    <div class="game-frame">
-      <canvas id="gameCanvas" width="900" height="300"></canvas>
-      <div id="gameOver" class="game-over" hidden>
-        <strong>Попробуй ещё раз</strong>
-        <button id="restartGame">Играть снова</button>
-      </div>
-    </div>
-
-    <div class="game-info">
-      <span>ПРОБЕЛ / КЛИК — ПРЫЖОК</span>
-      <span>СЧЁТ: <b id="score">0</b></span>
-    </div>
-
-    <div class="loading-status" id="loadingStatus">Подготовка нейросети…</div>
-    <button id="skipGame" class="skip-button">Пропустить игру →</button>
-  </main>
-
-  <div class="bottom-note">PUPIK STUDIOS</div>
-</section>
-
-<!-- РЕГИСТРАЦИЯ -->
-<section id="registerScreen" class="screen register-screen" hidden>
-  <div class="register-card">
-    <div class="register-logo">P</div>
-    <div class="register-label">PUPIK AI ACCOUNT</div>
-    <h1>Добро пожаловать!</h1>
-    <p>Как тебя называть?</p>
-
-    <form id="registerForm">
-      <input
-        id="nickname"
-        type="text"
-        maxlength="20"
-        minlength="2"
-        placeholder="Твой ник"
-        autocomplete="nickname"
-        required
-      >
-      <button type="submit">Продолжить →</button>
-    </form>
-    <small>Ник сохранится в этом браузере.</small>
-  </div>
-</section>
-
-<!-- ЧАТ -->
-<div class="app" id="chatApp" hidden>
-  <aside class="sidebar">
+  <aside class="sidebar" id="sidebar">
     <div class="brand">
-      <span class="logo">P</span>
-      <div>
-        <strong>Pupik AI</strong>
-        <small>Твой AI-помощник</small>
-      </div>
+      <div class="brand-icon">P</div>
+      <span>Pupik AI</span>
     </div>
 
-    <button id="newChat" class="new-chat">＋ Новый чат</button>
+    <button class="new-chat" id="newChat">
+      <span>＋</span> Новый чат
+    </button>
 
-    <div class="sidebar-caption">ПРОФИЛЬ</div>
-    <div class="profile">
-      <div class="profile-avatar">P</div>
+    <div class="sidebar-label">ТВОИ ЧАТЫ</div>
+    <div class="history" id="history"></div>
+
+    <div class="sidebar-bottom">
+      <div class="profile-icon">P</div>
       <div>
-        <strong id="profileName">Пользователь</strong>
+        <strong>Pupik User</strong>
         <small>Личный помощник</small>
       </div>
     </div>
   </aside>
 
   <main class="main">
+
     <header class="topbar">
-      <span>Рабочее пространство</span>
-      <span class="status-wrap">
-        <i class="status-dot"></i>
-        <span id="status">Pupik AI готов</span>
-      </span>
+      <button class="menu-button" id="menuButton">☰</button>
+      <div class="top-title">Новый диалог</div>
+      <div class="model-status">
+        <span class="status-dot" id="statusDot"></span>
+        <span id="statusText">Нейросеть не загружена</span>
+      </div>
     </header>
 
     <section class="chat-area">
-      <div id="welcome" class="welcome">
+
+      <div class="welcome" id="welcome">
         <div class="welcome-logo">P</div>
-        <h1>Привет, <span id="welcomeName">друг</span>!</h1>
-        <p>Я Pupik AI. Что будем делать?</p>
+        <h1>Привет! Я Pupik AI</h1>
+        <p>Твой AI-агент. Задай вопрос — и начнём.</p>
+
+        <div class="suggestions">
+
+          <button class="suggestion"
+            data-prompt="Объясни мне сложную тему простыми словами">
+            <span>📚</span>
+            <strong>Объяснить тему</strong>
+            <small>Простые объяснения</small>
+          </button>
+
+          <button class="suggestion"
+            data-prompt="Придумай интересную идею для проекта">
+            <span>💡</span>
+            <strong>Придумать идею</strong>
+            <small>Идеи для проектов</small>
+          </button>
+
+          <button class="suggestion"
+            data-prompt="Помоги написать программу">
+            <span>💻</span>
+            <strong>Написать код</strong>
+            <small>Программирование</small>
+          </button>
+
+          <button class="suggestion"
+            data-prompt="Расскажи что-нибудь интересное">
+            <span>🌍</span>
+            <strong>Узнать новое</strong>
+            <small>Интересные факты</small>
+          </button>
+
+        </div>
       </div>
-      <div id="messages" aria-live="polite"></div>
+
+      <div class="messages" id="messages"></div>
+
     </section>
 
-    <footer class="composer-wrap">
-      <form id="form" class="composer">
-        <textarea id="prompt" rows="1" placeholder="Напиши сообщение Pupik AI..."></textarea>
-        <button id="send" type="submit">↑</button>
+    <footer class="composer-area">
+      <form class="composer" id="chatForm">
+        <textarea
+          id="messageInput"
+          placeholder="Напиши сообщение Pupik AI..."
+          rows="1"
+        ></textarea>
+
+        <button type="submit" id="sendButton">↑</button>
       </form>
-      <div class="hint">Pupik AI · Локальная нейросеть</div>
+
+      <div class="disclaimer">
+        Pupik AI может ошибаться. Проверяй важную информацию.
+      </div>
     </footer>
+
   </main>
 </div>
 
-<!-- ИГРА -->
-<script>
-(() => {
-  const canvas = document.getElementById("gameCanvas");
-  const ctx = canvas.getContext("2d");
-  const scoreEl = document.getElementById("score");
-  const gameOver = document.getElementById("gameOver");
+<script type="module" src="app.js"></script>
 
-  let active = true;
-  let ended = false;
-  let frame = 0;
-  let score = 0;
-  let speed = 5;
-  let obstacles = [];
-  let player = { x: 105, y: 218, size: 30, vy: 0, grounded: true };
-
-  function reset() {
-    frame = 0;
-    score = 0;
-    speed = 5;
-    obstacles = [];
-    player = { x: 105, y: 218, size: 30, vy: 0, grounded: true };
-    ended = false;
-    active = true;
-    scoreEl.textContent = "0";
-    gameOver.hidden = true;
-  }
-
-  function jump() {
-    if (!active || ended || !player.grounded) return;
-    player.vy = -13;
-    player.grounded = false;
-  }
-
-  function update() {
-    if (!active || ended) return;
-
-    frame++;
-    score += 0.12;
-    speed = Math.min(10, 5 + score / 100);
-    scoreEl.textContent = Math.floor(score);
-
-    player.vy += 0.65;
-    player.y += player.vy;
-
-    if (player.y >= 218) {
-      player.y = 218;
-      player.vy = 0;
-      player.grounded = true;
-    }
-
-    if (frame % Math.max(48, Math.floor(90 - speed * 3)) === 0) {
-      obstacles.push({
-        x: 920,
-        width: 27,
-        height: 30 + Math.random() * 25
-      });
-    }
-
-    obstacles.forEach(o => o.x -= speed);
-    obstacles = obstacles.filter(o => o.x > -50);
-
-    for (const o of obstacles) {
-      if (
-        player.x + 25 > o.x + 5 &&
-        player.x + 5 < o.x + o.width - 5 &&
-        player.y + 26 > 252 - o.height
-      ) {
-        ended = true;
-        gameOver.hidden = false;
-        break;
-      }
-    }
-  }
-
-  function render() {
-    ctx.fillStyle = "#11131b";
-    ctx.fillRect(0, 0, 900, 300);
-
-    ctx.strokeStyle = "#202534";
-    for (let x = 0; x < 900; x += 40) {
-      ctx.beginPath();
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x, 300);
-      ctx.stroke();
-    }
-    for (let y = 0; y < 300; y += 40) {
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(900, y);
-      ctx.stroke();
-    }
-
-    ctx.fillStyle = "#8a72e8";
-    ctx.fillRect(0, 252, 900, 3);
-
-    obstacles.forEach(o => {
-      ctx.fillStyle = "#ff6d83";
-      ctx.shadowColor = "#ff6d83";
-      ctx.shadowBlur = 12;
-      ctx.beginPath();
-      ctx.moveTo(o.x, 252);
-      ctx.lineTo(o.x + o.width / 2, 252 - o.height);
-      ctx.lineTo(o.x + o.width, 252);
-      ctx.fill();
-      ctx.shadowBlur = 0;
-    });
-
-    ctx.save();
-    ctx.translate(player.x + 15, player.y + 15);
-    ctx.rotate(player.grounded ? 0 : 0.5);
-    ctx.fillStyle = "#a58bff";
-    ctx.shadowColor = "#9277ff";
-    ctx.shadowBlur = 17;
-    ctx.fillRect(-15, -15, 30, 30);
-    ctx.shadowBlur = 0;
-    ctx.fillStyle = "#171421";
-    ctx.fillRect(-7, -5, 5, 5);
-    ctx.fillRect(4, -5, 5, 5);
-    ctx.restore();
-  }
-
-  function loop() {
-    update();
-    render();
-    requestAnimationFrame(loop);
-  }
-
-  canvas.addEventListener("pointerdown", jump);
-  document.addEventListener("keydown", e => {
-    if (e.code === "Space" && !document.getElementById("loadingScreen").hidden) {
-      e.preventDefault();
-      jump();
-    }
-  });
-
-  document.getElementById("restartGame").addEventListener("click", reset);
-  document.getElementById("skipGame").addEventListener("click", () => {
-    document.getElementById("loadingStatus").textContent =
-      "Игра пропущена. Дождись загрузки нейросети.";
-  });
-
-  window.pupikStopGame = () => {
-    active = false;
-  };
-
-  loop();
-})();
-</script>
-
-<script type="module" src="./app.js"></script>
 </body>
 </html>
