@@ -1,13 +1,11 @@
 
-
 <!DOCTYPE html>
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#101114">
   <title>Pupik AI</title>
-  <link rel="stylesheet" href="./style.css">
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
@@ -19,9 +17,7 @@
       <span>Pupik AI</span>
     </div>
 
-    <button class="new-chat" id="newChat">
-      <span>＋</span> Новый чат
-    </button>
+    <button class="new-chat" id="newChat">＋ Новый чат</button>
 
     <div class="sidebar-label">ТВОИ ЧАТЫ</div>
     <div class="history" id="history"></div>
@@ -36,14 +32,12 @@
   </aside>
 
   <main class="main">
-
     <header class="topbar">
-      <button class="menu-button" id="menuButton" aria-label="Меню">☰</button>
+      <button class="menu-button" id="menuButton">☰</button>
       <div class="top-title">Новый диалог</div>
-
       <div class="model-status">
         <span class="status-dot" id="statusDot"></span>
-        <span id="statusText">Нейросеть ещё не загружена</span>
+        <span id="statusText">Pupik AI</span>
       </div>
     </header>
 
@@ -55,7 +49,6 @@
         <p>Твой AI-агент. Задай вопрос — и начнём.</p>
 
         <div class="suggestions">
-
           <button class="suggestion" data-prompt="Объясни мне сложную тему простыми словами">
             <span>📚</span>
             <strong>Объяснить тему</strong>
@@ -79,12 +72,10 @@
             <strong>Узнать новое</strong>
             <small>Интересные факты</small>
           </button>
-
         </div>
       </div>
 
       <div class="messages" id="messages"></div>
-
     </section>
 
     <footer class="composer-area">
@@ -93,9 +84,7 @@
           id="messageInput"
           placeholder="Напиши сообщение Pupik AI..."
           rows="1"
-          autocomplete="off"
         ></textarea>
-
         <button type="submit" id="sendButton" aria-label="Отправить">↑</button>
       </form>
 
@@ -103,11 +92,9 @@
         Pupik AI может ошибаться. Проверяй важную информацию.
       </div>
     </footer>
-
   </main>
 </div>
 
-<script type="module" src="./app.js"></script>
-
+<script type="module" src="app.js"></script>
 </body>
 </html>
