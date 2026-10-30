@@ -1,11 +1,13 @@
 
+
 <!DOCTYPE html>
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#101114">
   <title>Pupik AI</title>
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="./style.css">
 </head>
 <body>
 
@@ -36,11 +38,12 @@
   <main class="main">
 
     <header class="topbar">
-      <button class="menu-button" id="menuButton">☰</button>
+      <button class="menu-button" id="menuButton" aria-label="Меню">☰</button>
       <div class="top-title">Новый диалог</div>
+
       <div class="model-status">
         <span class="status-dot" id="statusDot"></span>
-        <span id="statusText">Нейросеть не загружена</span>
+        <span id="statusText">Нейросеть ещё не загружена</span>
       </div>
     </header>
 
@@ -53,29 +56,25 @@
 
         <div class="suggestions">
 
-          <button class="suggestion"
-            data-prompt="Объясни мне сложную тему простыми словами">
+          <button class="suggestion" data-prompt="Объясни мне сложную тему простыми словами">
             <span>📚</span>
             <strong>Объяснить тему</strong>
             <small>Простые объяснения</small>
           </button>
 
-          <button class="suggestion"
-            data-prompt="Придумай интересную идею для проекта">
+          <button class="suggestion" data-prompt="Придумай интересную идею для проекта">
             <span>💡</span>
             <strong>Придумать идею</strong>
             <small>Идеи для проектов</small>
           </button>
 
-          <button class="suggestion"
-            data-prompt="Помоги написать программу">
+          <button class="suggestion" data-prompt="Помоги написать программу">
             <span>💻</span>
             <strong>Написать код</strong>
             <small>Программирование</small>
           </button>
 
-          <button class="suggestion"
-            data-prompt="Расскажи что-нибудь интересное">
+          <button class="suggestion" data-prompt="Расскажи что-нибудь интересное">
             <span>🌍</span>
             <strong>Узнать новое</strong>
             <small>Интересные факты</small>
@@ -94,9 +93,10 @@
           id="messageInput"
           placeholder="Напиши сообщение Pupik AI..."
           rows="1"
+          autocomplete="off"
         ></textarea>
 
-        <button type="submit" id="sendButton">↑</button>
+        <button type="submit" id="sendButton" aria-label="Отправить">↑</button>
       </form>
 
       <div class="disclaimer">
@@ -107,7 +107,7 @@
   </main>
 </div>
 
-<script type="module" src="app.js"></script>
+<script type="module" src="./app.js"></script>
 
 </body>
 </html>
