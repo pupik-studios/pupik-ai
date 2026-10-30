@@ -2,9 +2,18 @@
 import { pipeline, env } from
   "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1";
 
-const MODEL = "onnx-community/Qwen2.5-1.5B-Instruct";
-
 env.useBrowserCache = true;
+
+// Определяем iPhone и iPad
+function isAppleMobile() {
+  return /iPhone|iPad|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+}
+
+// Выбираем модель
+const MODEL = isAppleMobile()
+  ? "onnx-community/Qwen2.5-0.5B-Instruct"
+  : "onnx-community/Qwen2.5-1.5B-Instruct";
 
 // Элементы страницы
 const status = document.getElementById("status");
@@ -24,30 +33,19 @@ let history = [];
 const SYSTEM_PROMPT = `
 Ты — Pupik AI, самостоятельный искусственный интеллект.
 
-Твои задачи:
-- Отвечай на вопросы пользователя.
-- Объясняй сложные темы простыми словами.
-- Помогай с программированием, идеями и обучением.
-- Общайся дружелюбно.
-- Не оценивай пользователя и его вопросы.
-- Не ставь баллы и рейтинги.
-- Не проверяй качество вопросов.
-- Не ищи ответы в интернете.
-- Не утверждай, что знаешь то, чего не знаешь.
-- Если пользователь пишет по-русски, отвечай по-русски.
-- Отвечай понятно и по существу.
+Ты должен:
+- Отвечать на вопросы пользователя.
+- Объяснять сложные темы простыми словами.
+- Помогать с программированием и идеями.
+- Общаться дружелюбно.
+- Не оценивать вопросы пользователя.
+- Не ставить баллы и рейтинги.
+- Не проверять качество вопросов.
+- Не искать ответы в интернете.
+- Не выдумывать факты.
+- Если пользователь пишет по-русски, отвечать по-русски.
+- Давать понятные и полезные ответы.
 `;
-
-// Определяем Safari
-function isSafari() {
-  const ua = navigator.userAgent;
-
-  return (
-    /iPhone|iPad|iPod/.test(ua) ||
-    (/Safari/.test(ua) &&
-      !/Chrome|CriOS|Edg|OPR|Firefox/.test(ua))
-  );
-}
 
 // Статус
 function setStatus(text) {
@@ -64,7 +62,6 @@ function addMessage(text, role) {
   element.textContent = text;
 
   messages.appendChild(element);
-
   messages.scrollTop = messages.scrollHeight;
 
   return element;
@@ -77,53 +74,39 @@ function updateWelcome() {
   }
 }
 
-// Загрузка нейросети
+// Диагностика
+function printDiagnostics() {
+  console.log("===== PUPIK AI =====");
+  console.log("Модель:", MODEL);
+  console.log("Браузер:", navigator.userAgent);
+  console.log("Apple mobile:", isAppleMobile());
+  console.log("WebGPU:", !!navigator.gpu);
+  console.log("Память:", navigator.deviceMemory || "неизвестна");
+  console.log("====================");
+}
+
+// Загрузка модели
 async function loadAI() {
   if (ai || loading) return;
 
   loading = true;
 
-  setStatus("Подготовка нейросети…");
+  printDiagnostics();
 
-  // Safari сразу запускается через WASM.
-  const device = isSafari()
-    ? "wasm"
-    : (navigator.gpu ? "webgpu" : "wasm");
-
-  // Прогресс загрузки отдельных файлов.
-  const fileProgress = new Map();
-
-  const progress = (info) => {
-    const file = info.file || "Файл модели";
-
-    if (
-      info.status === "progress" &&
-      typeof info.progress === "number"
-    ) {
-      fileProgress.set(file, info.progress);
-
-      const percent = Math.round(info.progress);
-
-      setStatus(
-        `Загрузка: ${file} — ${percent}%`
-      );
-    }
-
-    if (info.status === "downloading") {
-      setStatus(`Скачивание: ${file}`);
-    }
-
-    if (info.status === "done") {
-      setStatus(`Файл загружен: ${file}`);
-    }
-  };
+  setStatus("Подключаем загрузчик…");
 
   try {
-    setStatus(
-      isSafari()
-        ? "Загрузка для Safari через WASM…"
-        : "Загрузка нейросети…"
-    );
+    console.log("Pupik AI: импорт загрузчика завершён");
+
+    // На iPhone используем WASM.
+    const device = isAppleMobile()
+      ? "wasm"
+      : (navigator.gpu ? "webgpu" : "wasm");
+
+    console.log("Устройство:", device);
+    console.log("Начинаем загрузку модели:", MODEL);
+
+    setStatus("Начинаем загрузку модели…");
 
     ai = await pipeline(
       "text-generation",
@@ -131,19 +114,43 @@ async function loadAI() {
       {
         dtype: "q4",
         device,
-        progress_callback: progress
+
+        progress_callback: (info) => {
+          console.log("Pupik progress:", info);
+
+          if (
+            info.status === "progress" &&
+            typeof info.progress === "number"
+          ) {
+            setStatus(
+              `Загрузка файла: ${Math.round(info.progress)}%`
+            );
+          }
+
+          if (info.status === "downloading") {
+            setStatus(
+              `Скачивание: ${info.file || "файлов модели"}`
+            );
+          }
+
+          if (info.status === "done") {
+            setStatus("Файл загружен, подготовка…");
+          }
+        }
       }
     );
+
+    console.log("Модель успешно загружена!");
 
     setStatus("Pupik AI готов к работе!");
 
   } catch (error) {
-    console.error("Ошибка загрузки модели:", error);
+    console.error("PUPIK ERROR:", error);
 
     ai = null;
 
     setStatus(
-      "Не удалось загрузить модель. Проверь интернет и память устройства."
+      "Ошибка загрузки: " + (error.message || "неизвестная ошибка")
     );
 
   } finally {
@@ -151,7 +158,7 @@ async function loadAI() {
   }
 }
 
-// Получение текста ответа
+// Получение ответа
 function extractAnswer(result) {
   const generated = result?.[0]?.generated_text;
 
@@ -161,7 +168,6 @@ function extractAnswer(result) {
 
   if (Array.isArray(generated)) {
     const last = generated[generated.length - 1];
-
     return last?.content || "";
   }
 
@@ -176,7 +182,7 @@ function saveHistory() {
       JSON.stringify(history)
     );
   } catch (error) {
-    console.warn("Не удалось сохранить историю:", error);
+    console.warn("Ошибка сохранения истории:", error);
   }
 }
 
@@ -197,17 +203,15 @@ async function sendMessage(text) {
 
   updateWelcome();
 
-  // Загружаем модель, если она ещё не загружена.
   if (!ai) {
     await loadAI();
   }
 
   if (!ai) {
     addMessage(
-      "Не получилось загрузить нейросеть. Попробуй обновить страницу.",
+      "Нейросеть не загрузилась. Проверь подключение и попробуй ещё раз.",
       "assistant"
     );
-
     return;
   }
 
@@ -224,12 +228,11 @@ async function sendMessage(text) {
         role: "system",
         content: SYSTEM_PROMPT
       },
-
       ...history.slice(-12)
     ];
 
     const result = await ai(chat, {
-      max_new_tokens: 350,
+      max_new_tokens: 300,
       temperature: 0.7,
       do_sample: true,
       top_p: 0.9,
@@ -238,7 +241,7 @@ async function sendMessage(text) {
 
     const answer =
       extractAnswer(result).trim() ||
-      "Не получилось сформировать ответ. Попробуй задать вопрос иначе.";
+      "Не получилось сформировать ответ.";
 
     addMessage(answer, "assistant");
 
@@ -249,17 +252,17 @@ async function sendMessage(text) {
 
     saveHistory();
 
-    setStatus("Pupik AI готов к работе!");
+    setStatus("Pupik AI готов!");
 
   } catch (error) {
     console.error("Ошибка генерации:", error);
 
     addMessage(
-      "Произошла ошибка при создании ответа. Попробуй ещё раз.",
+      "Ошибка генерации ответа: " + error.message,
       "assistant"
     );
 
-    setStatus("Ошибка генерации.");
+    setStatus("Ошибка генерации");
 
   } finally {
     generating = false;
@@ -271,21 +274,16 @@ async function sendMessage(text) {
   }
 }
 
-// Отправка через форму
+// Форма отправки
 form.addEventListener("submit", (event) => {
   event.preventDefault();
-
   sendMessage(promptInput.value);
 });
 
-// Enter отправляет, Shift + Enter переносит строку
+// Enter отправляет сообщение
 promptInput.addEventListener("keydown", (event) => {
-  if (
-    event.key === "Enter" &&
-    !event.shiftKey
-  ) {
+  if (event.key === "Enter" && !event.shiftKey) {
     event.preventDefault();
-
     form.requestSubmit();
   }
 });
@@ -303,9 +301,7 @@ newChatButton.addEventListener("click", () => {
   updateWelcome();
 
   setStatus(
-    ai
-      ? "Pupik AI готов к работе!"
-      : "Нейросеть ещё не загружена."
+    ai ? "Pupik AI готов!" : "Нейросеть ещё не загружена"
   );
 });
 
@@ -330,14 +326,12 @@ function restoreHistory() {
         typeof item.content === "string"
       );
 
-      for (const item of history) {
+      history.forEach((item) => {
         addMessage(item.content, item.role);
-      }
+      });
     }
-
   } catch (error) {
-    console.warn("Ошибка восстановления истории:", error);
-
+    console.warn("Не удалось восстановить историю:", error);
     history = [];
   }
 
@@ -346,4 +340,8 @@ function restoreHistory() {
 
 // Запуск
 restoreHistory();
+
+setStatus("Запуск Pupik AI…");
+
 loadAI();
+
