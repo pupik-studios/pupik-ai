@@ -87,26 +87,27 @@ function printDiagnostics() {
 
 // Загрузка модели
 async function loadAI() {
-  if (ai || loading) return;
+  if (ai) return true;
+  if (loading) return false;
 
   loading = true;
 
+  sendButton.disabled = true;
+  promptInput.disabled = true;
+
   printDiagnostics();
 
-  setStatus("Подключаем загрузчик…");
+  setStatus("Подключаем загрузчик нейросети…");
 
   try {
-    console.log("Pupik AI: импорт загрузчика завершён");
-
-    // На iPhone используем WASM.
     const device = isAppleMobile()
       ? "wasm"
       : (navigator.gpu ? "webgpu" : "wasm");
 
     console.log("Устройство:", device);
-    console.log("Начинаем загрузку модели:", MODEL);
+    console.log("Начинаем загрузку:", MODEL);
 
-    setStatus("Начинаем загрузку модели…");
+    setStatus("Скачиваем файлы нейросети…");
 
     ai = await pipeline(
       "text-generation",
@@ -118,12 +119,16 @@ async function loadAI() {
         progress_callback: (info) => {
           console.log("Pupik progress:", info);
 
-          if (
-            info.status === "progress" &&
-            typeof info.progress === "number"
-          ) {
+          if (info.status === "progress") {
+            const percent =
+              typeof info.progress === "number"
+                ? Math.round(info.progress)
+                : null;
+
             setStatus(
-              `Загрузка файла: ${Math.round(info.progress)}%`
+              percent !== null
+                ? `Загрузка модели: ${percent}%`
+                : "Загружаем модель…"
             );
           }
 
@@ -134,7 +139,11 @@ async function loadAI() {
           }
 
           if (info.status === "done") {
-            setStatus("Файл загружен, подготовка…");
+            setStatus("Файлы загружены. Подготавливаем нейросеть…");
+          }
+
+          if (info.status === "ready") {
+            setStatus("Нейросеть подготовлена…");
           }
         }
       }
@@ -144,17 +153,29 @@ async function loadAI() {
 
     setStatus("Pupik AI готов к работе!");
 
+    return true;
+
   } catch (error) {
     console.error("PUPIK ERROR:", error);
 
     ai = null;
 
     setStatus(
-      "Ошибка загрузки: " + (error.message || "неизвестная ошибка")
+      "Ошибка загрузки: " +
+      (error.message || "неизвестная ошибка")
     );
+
+    addMessage(
+      "Не удалось загрузить нейросеть. Проверь подключение к интернету и попробуй ещё раз.",
+      "assistant"
+    );
+
+    return false;
 
   } finally {
     loading = false;
+    sendButton.disabled = false;
+    promptInput.disabled = false;
   }
 }
 
@@ -203,16 +224,15 @@ async function sendMessage(text) {
 
   updateWelcome();
 
-  if (!ai) {
-    await loadAI();
-  }
+  saveHistory();
 
+  // Загружаем модель только после первого сообщения
   if (!ai) {
-    addMessage(
-      "Нейросеть не загрузилась. Проверь подключение и попробуй ещё раз.",
-      "assistant"
-    );
-    return;
+    const loaded = await loadAI();
+
+    if (!loaded) {
+      return;
+    }
   }
 
   generating = true;
@@ -338,10 +358,12 @@ function restoreHistory() {
   updateWelcome();
 }
 
-// Запуск
+// Запуск приложения
 restoreHistory();
 
-setStatus("Запуск Pupik AI…");
+setStatus(
+  "Pupik AI готов. Напиши сообщение, чтобы запустить нейросеть."
+);
 
-loadAI();
-
+console.log("Pupik AI запущен.");
+console.log("Модель будет загружена после первого сообщения.");
