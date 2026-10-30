@@ -1,6 +1,8 @@
 
 import { pipeline, env } from
   "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1";
+import { generateImage, wantsImage, extractImagePrompt } from "./generate.js";
+import { trySolve } from "./knowledge.js";
 
 env.useBrowserCache = true;
 
@@ -138,13 +140,13 @@ function renderMessages() {
   welcome.style.display = chatHistory.length ? "none" : "flex";
 
   chatHistory.forEach(message => {
-    addMessageToScreen(message.role, message.content);
+    addMessageToScreen(message.role, message.content, message.image);
   });
 
   messagesElement.scrollTop = messagesElement.scrollHeight;
 }
 
-function addMessageToScreen(role, content) {
+function addMessageToScreen(role, content, image) {
   const message = document.createElement("div");
   message.className = "message " +
     (role === "user" ? "user-message" : "ai-message");
@@ -162,12 +164,22 @@ function addMessageToScreen(role, content) {
   name.className = "message-name";
   name.textContent = role === "user" ? (userName || "Ты") : "Pupik AI";
 
-  const text = document.createElement("div");
-  text.className = "message-text";
-  text.textContent = content;
+  if (content) {
+    const text = document.createElement("div");
+    text.className = "message-text";
+    text.textContent = content;
+    body.appendChild(text);
+  }
 
-  body.appendChild(name);
-  body.appendChild(text);
+  if (image) {
+    const picture = document.createElement("img");
+    picture.className = "message-image";
+    picture.alt = content || "рисунок";
+    picture.src = image;
+    body.appendChild(picture);
+  }
+
+  body.prepend(name);
   message.appendChild(avatar);
   message.appendChild(body);
 
@@ -446,6 +458,28 @@ function extractAnswer(result) {
   return "";
 }
 
+function localAnswer(question) {
+  const q = question.toLowerCase().replace(/ё/g, "е");
+  if (/кто создател|кто создал|кто автор|who created|who made/.test(q)) {
+    return "Создатель: Владимиров Роберт Павлович.";
+  }
+  if (/^(привет|здравств|хай|hello|hi)\b/.test(q)) {
+    return userName ? `Привет, ${userName}. Я на связи.` : "Привет. Я на связи.";
+  }
+  const solved = trySolve(question);
+  if (solved?.answer) return solved.answer;
+  return "Я на связи. Могу ответить на задачу или нарисовать: напиши «нарисуй кота».";
+}
+
+function withTimeout(promise, ms) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      setTimeout(() => reject(new Error("timeout")), ms);
+    })
+  ]);
+}
+
 async function sendMessage(text) {
   const question = text.trim();
 
@@ -479,57 +513,61 @@ async function sendMessage(text) {
   addTyping();
 
   try {
-    if (!ai) {
-      await loadAI();
+    let answer = "";
+    let image = "";
+
+    if (wantsImage(question)) {
+      const drawn = await generateImage(extractImagePrompt(question));
+      image = drawn.dataUrl;
+      answer = "Готово.";
+    } else if (ai) {
+      try {
+        const prompt = [
+          { role: "system", content: systemPrompt() },
+          ...chatHistory.slice(-8).map(item => ({
+            role: item.role === "assistant" ? "assistant" : "user",
+            content: item.content
+          }))
+        ];
+        const result = await withTimeout(ai(prompt, {
+          max_new_tokens: 80,
+          temperature: 0.7,
+          do_sample: true,
+          top_p: 0.9,
+          repetition_penalty: 1.08
+        }), 8000);
+        answer = extractAnswer(result).trim();
+      } catch (error) {
+        console.warn("Модель не успела, отвечаю сразу:", error);
+      }
     }
 
-    const prompt = [
-      { role: "system", content: systemPrompt() },
-      ...chatHistory.slice(-12)
-    ];
-
-    const result = await ai(prompt, {
-      max_new_tokens: 300,
-      temperature: 0.7,
-      do_sample: true,
-      top_p: 0.9,
-      repetition_penalty: 1.08
-    });
-
-    const answer =
-      extractAnswer(result).trim() ||
-      "Не получилось сформировать ответ.";
+    if (!answer && !image) answer = localAnswer(question);
 
     removeTyping();
 
     chatHistory.push({
       role: "assistant",
-      content: answer
+      content: answer,
+      image
     });
 
-    addMessageToScreen("assistant", answer);
+    addMessageToScreen("assistant", answer, image);
     saveCurrentChat();
 
-    setStatus(true);
+    if (ai) setStatus(true);
 
   } catch (error) {
     removeTyping();
-
     console.error("Ошибка Pupik AI:", error);
 
-    const errorMessage =
-      "Не удалось получить ответ. Попробуй ещё раз.";
-
+    const errorMessage = localAnswer(question);
     chatHistory.push({
       role: "assistant",
       content: errorMessage
     });
-
     addMessageToScreen("assistant", errorMessage);
     saveCurrentChat();
-
-    setStatus(false);
-
   } finally {
     generating = false;
     sendButton.disabled = false;
