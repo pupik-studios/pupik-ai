@@ -1009,74 +1009,46 @@ export function extractImagePrompt(text) {
  * @param {{ photoDataUrl?: string }} [opts]
  */
 const PHOTO_QUERIES = [
-  [/рональдин|ronaldinho/, "Ronaldinho", "Роналдиньо"],
-  [/роналд|криштиан|cr7/, "Cristiano Ronaldo", "Криштиану Роналду"],
-  [/месси|messi/, "Lionel Messi", "Месси"],
-  [/бургер|гамбургер|чизбургер|burger/, "hamburger", "бургер"],
-  [/бобр|beaver/, "beaver", "бобр"],
-  [/кот|кошк|котен|kitten|\bcat\b/, "cat", "кот"],
-  [/собак|щенок|puppy|\bdog\b/, "dog", "собака"],
-  [/кролик|заяц|bunny|rabbit/, "rabbit", "кролик"],
-  [/лиса|лису|лисы|\bfox\b/, "fox", "лиса"],
-  [/медвед|bear/, "bear", "медведь"],
-  [/птиц|попуга|сова|bird/, "bird", "птица"],
-  [/рыб|акул|fish/, "fish", "рыба"],
-  [/лев|lion/, "lion", "лев"],
-  [/слон|elephant/, "elephant", "слон"],
-  [/лягуш|frog/, "frog", "лягушка"],
-  [/бабоч|butterfly/, "butterfly", "бабочка"],
-  [/лошад|конь|horse/, "horse", "лошадь"],
-  [/цвет|роза|flower/, "flower", "цветок"],
-  [/дерев|forest|tree/, "tree", "дерево"],
-  [/дом|house/, "house", "дом"],
-  [/машин|автомобил|car/, "car", "машина"],
-  [/футбол|мяч|soccer|football/, "football", "футбол"],
-  [/космос|луна|планет|space/, "space", "космос"],
-  [/море|океан|пляж|beach|ocean/, "sea", "море"],
-  [/закат|солнц|sunset/, "sunset", "закат"],
-  [/робот|robot/, "robot", "робот"],
-  [/человек|person/, "person", "человек"]
+  [/рональдин|ronaldinho/, "Ronaldinho", "Роналдиньо", /ronaldinho/i],
+  [/роналд|криштиан|cr7/, "Cristiano Ronaldo", "Криштиану Роналду", /ronaldo/i],
+  [/месси|messi/, "Lionel Messi", "Месси", /messi/i],
+  [/бургер|гамбургер|чизбургер|burger/, "hamburger", "бургер", /burger|hamburger/i],
+  [/бобр|beaver/, "beaver", "бобр", /beaver|castor/i],
+  [/кот(?!ор)|кошк|котен|kitten|\bcat\b/, "cat", "кот", /\bcat\b|kitten/i],
+  [/собак|щенок|puppy|\bdog\b/, "dog", "собака", /\bdog\b|puppy/i],
+  [/кролик|заяц|bunny|rabbit/, "rabbit", "кролик", /rabbit|bunny|hare/i],
+  [/лиса|лису|лисы|\bfox\b/, "fox", "лиса", /\bfox\b/i],
+  [/медвед|\bbear\b/, "bear", "медведь", /\bbear\b/i],
+  [/птиц|попуга|сова|\bbird\b/, "bird", "птица", /\bbird\b|parrot|owl/i],
+  [/рыб|акул|\bfish\b/, "fish", "рыба", /\bfish\b|shark/i],
+  [/(?:^|[^а-я])лев(?:[^а-яо]|$)|льва|львов|\blion\b/, "lion", "лев", /\blion\b/i],
+  [/слон|elephant/, "elephant", "слон", /elephant/i],
+  [/лягуш|\bfrog\b/, "frog", "лягушка", /\bfrog\b/i],
+  [/бабоч|butterfly/, "butterfly", "бабочка", /butterfly/i],
+  [/лошад|(?:^|[^а-я])конь(?:[^а-я]|$)|коня|\bhorse\b/, "horse", "лошадь", /\bhorse\b/i],
+  [/цветок|цвет[аыуе]|роза|\bflower\b/, "flower", "цветок", /\bflower\b|rose/i],
+  [/дерев|forest|\btree\b/, "tree", "дерево", /\btree\b|forest/i],
+  [/(?:^|[^а-я])дом(?:[^а-я]|$)|домик|\bhouse\b/, "house", "дом", /\bhouse\b/i],
+  [/машин|автомобил|\bcar\b/, "car", "машина", /\bcar\b|automobile/i],
+  [/футбол|soccer|football/, "football", "футбол", /football|soccer/i],
+  [/космос|луна|планет|\bspace\b/, "space", "космос", /space|moon|planet|galaxy/i],
+  [/море|океан|пляж|\bsea\b|ocean|beach/, "sea", "море", /\bsea\b|ocean|beach/i],
+  [/закат|солнц|sunset/, "sunset", "закат", /sunset|sunrise|\bsun\b/i],
+  [/робот|robot/, "robot", "робот", /robot/i],
+  [/человек|\bperson\b/, "person", "человек", /person|portrait/i]
 ];
 
 export function photoSubjects(prompt) {
   const p = normalize(prompt);
   const found = [];
-  for (const [pattern, query, label] of PHOTO_QUERIES) {
+  for (const [pattern, query, label, title] of PHOTO_QUERIES) {
     const match = p.match(pattern);
     if (!match || found.some(item => item.query === query)) continue;
-    found.push({ query, label, at: match.index, known: true });
+    found.push({ query, label, title, at: match.index, known: true });
   }
   found.sort((a, b) => a.at - b.at);
-  if (found.length) return found.slice(0, 3);
-  const rest = p.replace(/нарисуй|картинк\w*|фото\w*|рисунок\w*|друг\w*|номер\w*|с\s+номером\s*\d+/g, "").trim();
-  const query = latinize(rest) || "landscape";
-  return [{ query, label: rest || "пейзаж", at: 0, known: false }];
+  return found.slice(0, 2);
 }
-
-function latinize(text) {
-  const map = {
-    а: "a", б: "b", в: "v", г: "g", д: "d", е: "e", ж: "zh", з: "z", и: "i", й: "y",
-    к: "k", л: "l", м: "m", н: "n", о: "o", п: "p", р: "r", с: "s", т: "t", у: "u",
-    ф: "f", х: "h", ц: "ts", ч: "ch", ш: "sh", щ: "sch", ы: "y", э: "e", ю: "yu", я: "ya"
-  };
-  return String(text || "").replace(/[а-я]/g, char => map[char] || "").replace(/\s+/g, " ").trim();
-}
-
-const PHOTO_VARIANTS = {
-  "Cristiano Ronaldo": [
-    "Cristiano Ronaldo Portugal",
-    "Cristiano Ronaldo Real Madrid",
-    "Cristiano Ronaldo Manchester United",
-    "Cristiano Ronaldo Juventus",
-    "Cristiano Ronaldo Al Nassr",
-    "CR7 football"
-  ],
-  Ronaldinho: ["Ronaldinho", "Ronaldinho Barcelona", "Ronaldinho Gaucho"],
-  beaver: ["beaver animal", "Eurasian beaver", "beaver portrait"],
-  cat: ["cat", "kitten", "tabby cat", "cat portrait", "cat playing"],
-  dog: ["dog", "puppy", "dog portrait", "dog running"],
-  hamburger: ["hamburger", "cheeseburger", "burger food"]
-};
 
 const SEEN_KEY = "pupik_seen_photos";
 
@@ -1109,7 +1081,7 @@ function photoTurn() {
   }
 }
 
-async function searchPhotos(term) {
+async function searchPhotos(term, titlePattern) {
   const params = new URLSearchParams({
     action: "query",
     format: "json",
@@ -1126,36 +1098,37 @@ async function searchPhotos(term) {
   if (!response.ok) throw new Error("commons");
   const data = await response.json();
   const pages = Object.values(data.query?.pages || {});
-  const skip = /escultura|statue|sculpture|logo|icon|map|flag|diagram|drawing|sketch|svg|coat of arms|monument|museum|museu|hotel|20120609|boots on display/i;
+  const skip = /escultura|statue|sculpture|logo|icon|map|flag|diagram|drawing|sketch|svg|coat of arms|monument|museum|museu|hotel|20120609|boots on display|river|lake|bridge|valley|street|road|village|district/i;
   return pages
     .map(page => ({
       title: page.title || "",
-      url: page.imageinfo?.[0]?.thumburl || page.imageinfo?.[0]?.url || ""
+      url: page.imageinfo?.[0]?.thumburl || page.imageinfo?.[0]?.url || "",
+      mime: page.imageinfo?.[0]?.mime || ""
     }))
-    .filter(item => item.url && /jpe?g|png|webp/i.test(pageMime(pages, item.title)) && !skip.test(item.title));
+    .filter(item => item.url && /jpe?g|png|webp/i.test(item.mime) && titlePattern.test(item.title) && !skip.test(item.title));
 }
 
-function pageMime(pages, title) {
-  const page = pages.find(item => item.title === title);
-  return page?.imageinfo?.[0]?.mime || "";
-}
-
-async function findPhoto(query, turn = 0, extra = "") {
-  const face = /face|portrait/.test(extra);
-  const variants = face
-    ? [`${query} portrait`, `${query} face`, `${query} close-up`]
-    : (PHOTO_VARIANTS[query] || [query]);
-  const seen = seenPhotos();
+async function findPhoto(subject, turn = 0, options = {}) {
+  const face = options.face;
+  const number = options.number || "";
+  const tries = [
+    face ? `${subject.query} portrait` : "",
+    number ? `${subject.query} ${number}` : "",
+    subject.query
+  ].filter(Boolean);
   let pool = [];
-  for (let step = 0; step < variants.length && pool.length < 4; step += 1) {
-    const term = variants[(turn + step) % variants.length];
-    const numberOnly = extra.replace(/portrait|face/g, "").trim();
-    const found = await searchPhotos(face ? term : (numberOnly ? `${term} ${numberOnly}` : term));
+  for (const term of tries) {
+    const found = await searchPhotos(term, subject.title);
     pool.push(...found.filter(item => !pool.some(have => have.url === item.url)));
+    if (pool.length >= 8) break;
   }
-  if (!pool.length && extra) pool = await searchPhotos(variants[turn % variants.length]);
-  const fresh = pool.filter(item => !seen.includes(item.url));
-  const choice = (fresh.length ? fresh : pool)[turn % Math.max(1, (fresh.length ? fresh : pool).length)];
+  if (face) {
+    const facing = pool.filter(item => /portrait|face|head/i.test(item.title));
+    if (facing.length) pool = facing;
+  }
+  const fresh = pool.filter(item => !seenPhotos().includes(item.url));
+  const list = fresh.length ? fresh : pool;
+  const choice = list[turn % Math.max(1, list.length)];
   if (!choice) throw new Error("no photo");
   rememberPhoto(choice.url);
   return choice.url;
@@ -1181,15 +1154,15 @@ export async function generateImage(prompt) {
   const subjects = photoSubjects(prompt);
   const turn = photoTurn();
   const number = (normalize(prompt).match(/номер[а-я]*\s*(\d{1,2})|number\s*(\d{1,2})|№\s*(\d{1,2})/) || []).slice(1).find(Boolean) || "";
+  if (!subjects.length) throw new Error("no photo");
+  const face = /лицом|спереди|анфас|в лицо/.test(normalize(prompt));
   const urls = [];
   for (const subject of subjects) {
-    const face = /лицом|спереди|анфас|в лицо/.test(normalize(prompt));
-    const extra = [
-      number && /Ronaldo|Messi|Ronaldinho/.test(subject.query) ? number : "",
-      face ? "portrait face" : ""
-    ].filter(Boolean).join(" ");
     try {
-      urls.push(await findPhoto(subject.query, turn, extra));
+      urls.push(await findPhoto(subject, turn, {
+        face,
+        number: /Ronaldo|Messi|Ronaldinho/.test(subject.query) ? number : ""
+      }));
     } catch (error) {
       console.warn("Фото не найдено:", subject.query, error);
     }
