@@ -1,5 +1,5 @@
 
-import { generateImage, wantsImage, extractImagePrompt, photoSubjects } from "./generate.js?v=23";
+import { generateImage, wantsImage, extractImagePrompt, photoSubjects } from "./generate.js?v=24";
 import { trySolve } from "./knowledge.js?v=19";
 
 const NAME_KEY = "pupik_user_name";
@@ -609,10 +609,13 @@ function drawingCaption(question) {
 
 function imageFollowUp(question) {
   const q = question.toLowerCase().replace(/ё/g, "е");
-  if (wantsImage(question) || !/где|нет|не вижу|потеря/.test(q)) return "";
-  if (!photoSubjects(q).some(item => item.known)) return "";
+  const pose = /лицом|спереди|анфас|в лицо|со спины|сзади/.test(q);
+  if (wantsImage(question)) return "";
+  if (!pose && !/где|нет|не вижу|потеря/.test(q)) return "";
+  if (!pose && !photoSubjects(q).some(item => item.known)) return "";
   const last = [...chatHistory].reverse().find(item => item.role === "user" && wantsImage(item.content));
-  return last ? `${last.content} ${question}` : question;
+  if (!last) return pose ? "" : question;
+  return `${last.content} ${question}`;
 }
 
 async function sendMessage(text) {
@@ -658,7 +661,10 @@ async function sendMessage(text) {
         const drawn = await generateImage(prompt);
         image = drawn.dataUrl;
         const caption = drawingCaption(prompt);
-        if (follow) {
+        const pose = /лицом|спереди|анфас|в лицо/.test(question.toLowerCase());
+        if (pose) {
+          answer = caption.replace(/\.$/, " лицом вперёд.");
+        } else if (follow) {
           const missing = photoSubjects(question)[0]?.label || "это";
           const titled = missing.charAt(0).toUpperCase() + missing.slice(1);
           answer = `${titled} тоже на фото. ${caption}`;

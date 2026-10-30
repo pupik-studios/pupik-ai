@@ -1013,6 +1013,7 @@ const PHOTO_QUERIES = [
   [/роналд|криштиан|cr7/, "Cristiano Ronaldo", "Криштиану Роналду"],
   [/месси|messi/, "Lionel Messi", "Месси"],
   [/бургер|гамбургер|чизбургер|burger/, "hamburger", "бургер"],
+  [/бобр|beaver/, "beaver", "бобр"],
   [/кот|кошк|котен|kitten|\bcat\b/, "cat", "кот"],
   [/собак|щенок|puppy|\bdog\b/, "dog", "собака"],
   [/кролик|заяц|bunny|rabbit/, "rabbit", "кролик"],
@@ -1071,6 +1072,7 @@ const PHOTO_VARIANTS = {
     "CR7 football"
   ],
   Ronaldinho: ["Ronaldinho", "Ronaldinho Barcelona", "Ronaldinho Gaucho"],
+  beaver: ["beaver animal", "Eurasian beaver", "beaver portrait"],
   cat: ["cat", "kitten", "tabby cat", "cat portrait", "cat playing"],
   dog: ["dog", "puppy", "dog portrait", "dog running"],
   hamburger: ["hamburger", "cheeseburger", "burger food"]
@@ -1139,12 +1141,16 @@ function pageMime(pages, title) {
 }
 
 async function findPhoto(query, turn = 0, extra = "") {
-  const variants = PHOTO_VARIANTS[query] || [query];
+  const face = /face|portrait/.test(extra);
+  const variants = face
+    ? [`${query} portrait`, `${query} face`, `${query} close-up`]
+    : (PHOTO_VARIANTS[query] || [query]);
   const seen = seenPhotos();
   let pool = [];
   for (let step = 0; step < variants.length && pool.length < 4; step += 1) {
     const term = variants[(turn + step) % variants.length];
-    const found = await searchPhotos(extra ? `${term} ${extra}` : term);
+    const numberOnly = extra.replace(/portrait|face/g, "").trim();
+    const found = await searchPhotos(face ? term : (numberOnly ? `${term} ${numberOnly}` : term));
     pool.push(...found.filter(item => !pool.some(have => have.url === item.url)));
   }
   if (!pool.length && extra) pool = await searchPhotos(variants[turn % variants.length]);
@@ -1177,7 +1183,11 @@ export async function generateImage(prompt) {
   const number = (normalize(prompt).match(/номер[а-я]*\s*(\d{1,2})|number\s*(\d{1,2})|№\s*(\d{1,2})/) || []).slice(1).find(Boolean) || "";
   const urls = [];
   for (const subject of subjects) {
-    const extra = number && /Ronaldo|Messi/.test(subject.query) ? number : "";
+    const face = /лицом|спереди|анфас|в лицо/.test(normalize(prompt));
+    const extra = [
+      number && /Ronaldo|Messi|Ronaldinho/.test(subject.query) ? number : "",
+      face ? "portrait face" : ""
+    ].filter(Boolean).join(" ");
     try {
       urls.push(await findPhoto(subject.query, turn, extra));
     } catch (error) {
