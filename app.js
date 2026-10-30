@@ -1,5 +1,5 @@
 
-import { generateImage, wantsImage, extractImagePrompt } from "./generate.js?v=19";
+import { generateImage, wantsImage, extractImagePrompt } from "./generate.js?v=20";
 import { trySolve } from "./knowledge.js?v=19";
 
 const NAME_KEY = "pupik_user_name";
@@ -570,7 +570,7 @@ function localAnswer(question) {
     return `${name ? name + ", д" : "Д"}ержу это в голове. Фраза на сегодня: «Я учусь говорить по-русски». Слова: привет, спасибо, пожалуйста. Повтори их вслух, потом напиши своё предложение — поправлю.`;
   }
   if (/что умеешь|личный помощник|кто ты/.test(q)) {
-    return `Я личный помощник${name ? " " + name : ""}. Пишу код, разбираю задачу по шагам, учу русский и рисую.${noteText()}`;
+    return `Я Pupik AI${name ? ", помощник " + name : ""}. Пишу код, разбираю задачу по шагам, учу русский и показываю фото.${noteText()}`;
   }
 
   const code = codeAnswer(q);
@@ -605,11 +605,11 @@ function drawingCaption(question) {
   if (/учу русск|изучаю русск/.test(q)) remember("учит русский");
 
   if (ronaldo && aboutMe) {
-    return `${name ? name + ", н" : "Н"}арисовал тебя как Криштиану: белая форма и номер 7. ${/русск/.test(q) ? "Раз учишь русский, повтори: «Я учусь говорить по-русски»." : "Если нужно, могу ещё помочь с русским."}`;
+    return `${name ? name + ", в" : "В"}от фото Криштиану Роналду. ${/русск/.test(q) ? "Раз учишь русский, повтори: «Я учусь говорить по-русски»." : ""}`.trim();
   }
-  if (ronaldo) return "Нарисовал Криштиану: белая форма, номер 7.";
-  if (/бургер|гамбургер|burger/.test(q)) return "Вот бургер.";
-  return "Вот рисунок.";
+  if (ronaldo) return "Вот фото Криштиану Роналду.";
+  if (/бургер|гамбургер|burger/.test(q)) return "Вот фото бургера.";
+  return "Вот фото.";
 }
 
 async function sendMessage(text) {
@@ -649,9 +649,14 @@ async function sendMessage(text) {
     let image = "";
 
     if (wantsImage(question)) {
-      const drawn = await generateImage(extractImagePrompt(question));
-      image = drawn.dataUrl;
-      answer = drawingCaption(question);
+      try {
+        const drawn = await generateImage(extractImagePrompt(question));
+        image = drawn.dataUrl;
+        answer = drawingCaption(question);
+      } catch (error) {
+        console.warn("Фото не найдено:", error);
+        answer = "Не нашёл фото. Напиши короче: кот, бургер или Роналду.";
+      }
     } else {
       answer = localAnswer(question);
     }

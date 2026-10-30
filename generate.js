@@ -1007,54 +1007,76 @@ export function extractImagePrompt(text) {
  * @param {string} prompt
  * @param {{ photoDataUrl?: string }} [opts]
  */
-export async function generateImage(prompt, opts = {}) {
-  const theme = detectTheme(prompt);
-  const rnd = randomGenerator(hash(prompt + theme.id));
+const PHOTO_QUERIES = [
+  [/роналд|криштиан|cr7/, "Cristiano Ronaldo"],
+  [/месси|messi/, "Lionel Messi"],
+  [/бургер|гамбургер|чизбургер|burger/, "hamburger"],
+  [/кот|кошк|котен|kitten|cat/, "cat"],
+  [/собак|щенок|puppy|dog/, "dog"],
+  [/кролик|заяц|bunny|rabbit/, "rabbit"],
+  [/лис|fox/, "fox"],
+  [/медвед|bear/, "bear"],
+  [/птиц|попуга|сова|bird/, "bird"],
+  [/рыб|акул|fish/, "fish"],
+  [/лев|lion/, "lion"],
+  [/слон|elephant/, "elephant"],
+  [/лягуш|frog/, "frog"],
+  [/бабоч|butterfly/, "butterfly"],
+  [/лошад|конь|horse/, "horse"],
+  [/цвет|роз|flower/, "flower"],
+  [/дерев|forest|tree/, "tree"],
+  [/дом|house/, "house"],
+  [/машин|автомобил|car/, "car"],
+  [/футбол|мяч|soccer|football/, "football"],
+  [/космос|луна|планет|space/, "space"],
+  [/море|океан|пляж|beach|ocean/, "sea"],
+  [/закат|солнц|sunset/, "sunset"],
+  [/робот|robot/, "robot"],
+  [/человек|person/, "person"]
+];
 
-  const canvas = document.createElement("canvas");
-  canvas.width = W;
-  canvas.height = H;
-
-  const ctx = canvas.getContext("2d");
-
-  if (!ctx) {
-    throw new Error("Не удалось создать canvas");
+function photoQuery(prompt) {
+  const p = normalize(prompt);
+  for (const [pattern, query] of PHOTO_QUERIES) {
+    if (pattern.test(p)) return query;
   }
+  return p.replace(/нарисуй|картинк\w*|фото\w*|рисунок\w*/g, "").trim() || "landscape";
+}
 
-  if (wantsCollage(prompt) && opts.photoDataUrl) {
-    try {
-      const photo = await loadImage(opts.photoDataUrl);
+async function findPhoto(query) {
+  const params = new URLSearchParams({
+    action: "query",
+    format: "json",
+    origin: "*",
+    generator: "search",
+    gsrsearch: `${query} filetype:bitmap`,
+    gsrnamespace: "6",
+    gsrlimit: "12",
+    prop: "imageinfo",
+    iiprop: "url|mime",
+    iiurlwidth: "800"
+  });
+  const response = await fetch(`https://commons.wikimedia.org/w/api.php?${params}`);
+  if (!response.ok) throw new Error("commons");
+  const data = await response.json();
+  const pages = Object.values(data.query?.pages || {});
+  const skip = /escultura|statue|sculpture|logo|icon|map|flag|diagram|drawing|sketch|svg|coat of arms|monument/i;
+  const photos = pages
+    .map(page => ({
+      title: page.title || "",
+      info: page.imageinfo?.[0]
+    }))
+    .filter(item => item.info && /jpeg|png|webp/.test(item.info.mime || "") && (item.info.thumburl || item.info.url))
+    .sort((a, b) => Number(skip.test(a.title)) - Number(skip.test(b.title)));
+  const photo = photos.find(item => !skip.test(item.title)) || photos[0];
+  if (!photo) throw new Error("no photo");
+  return photo.info.thumburl || photo.info.url;
+}
 
-      background(ctx, "#b5e8bb");
-      drawCover(ctx, photo, 25, 40, 260, 380);
-
-      // Вместо выдуманного фото партнёра показываем рисунок.
-      const partnerTheme = detectTheme(prompt);
-      ctx.save();
-      ctx.translate(300, 0);
-      drawScene(ctx, partnerTheme, rnd);
-      ctx.restore();
-
-      ctx.fillStyle = "rgba(0,0,0,0.55)";
-      ctx.fillRect(0, H - 34, W, 34);
-
-      ctx.fillStyle = "#ffffff";
-      ctx.font = "bold 15px sans-serif";
-      ctx.fillText("Pupik AI · коллаж", 14, H - 12);
-
-      return {
-        dataUrl: canvas.toDataURL("image/jpeg", 0.9),
-        theme: "collage"
-      };
-    } catch (error) {
-      console.warn("Не удалось загрузить фото для коллажа:", error);
-    }
-  }
-
-  drawScene(ctx, theme, rnd);
-
+export async function generateImage(prompt) {
+  const url = await findPhoto(photoQuery(prompt));
   return {
-    dataUrl: canvas.toDataURL("image/jpeg", 0.9),
-    theme: theme.id
+    dataUrl: url,
+    theme: "photo"
   };
 }
