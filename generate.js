@@ -1100,6 +1100,14 @@ function photoTurn() {
   }
 }
 
+function photoAction(prompt) {
+  const p = normalize(prompt);
+  if (/забив|забил|(?:^|[^а-я])гол(?:а|у|ом|е|ы|ов)?(?:[^а-я]|$)/.test(p)) {
+    return { words: ["gol", "goal", "scores"], title: /gol|goal|scor/i, label: "забивает гол" };
+  }
+  return null;
+}
+
 function titleQuery(phrase) {
   const words = String(phrase || "")
     .split(/\s+/)
@@ -1141,23 +1149,34 @@ async function searchPhotos(term, titlePattern) {
 async function findPhoto(subject, turn = 0, options = {}) {
   const face = options.face;
   const number = options.number || "";
+  const action = options.action;
   const phrase = subject.known ? subject.query : await toEnglish(subject.query);
   const titlePattern = subject.title || new RegExp(phrase.split(/\s+/).filter(word => word.length > 2).map(word => word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|"), "i");
-  const tries = [
-    face ? `${phrase} portrait` : "",
-    number ? `${phrase} ${number}` : "",
-    phrase
-  ].filter(Boolean);
+  const lastName = phrase.split(/\s+/).pop();
+  const tries = action
+    ? action.words.map(word => `${lastName} ${word}`)
+    : [
+      face ? `${phrase} portrait` : "",
+      number ? `${phrase} ${number}` : "",
+      phrase
+    ].filter(Boolean);
   let pool = [];
   for (const term of tries) {
     const found = await searchPhotos(term, titlePattern);
     pool.push(...found.filter(item => !pool.some(have => have.url === item.url)));
     if (pool.length >= 8) break;
   }
-  if (face) {
+  if (action) {
+    pool = pool.filter(item => action.title.test(item.title) && !/inspired/i.test(item.title));
+    if (/Cristiano/.test(phrase)) {
+      const named = pool.filter(item => /cristiano|christiano/i.test(item.title));
+      if (named.length) pool = named;
+    }
+  } else if (face) {
     const facing = pool.filter(item => /portrait|face|head/i.test(item.title));
     if (facing.length) pool = facing;
   }
+  if (action && !pool.length) throw new Error(`Нет фото, где ${subject.label} ${action.label}.`);
   const fresh = pool.filter(item => !seenPhotos().includes(item.url));
   const list = fresh.length ? fresh : pool;
   const choice = list[turn % Math.max(1, list.length)];
@@ -1188,6 +1207,7 @@ export async function generateImage(prompt) {
   const number = (normalize(prompt).match(/номер[а-я]*\s*(\d{1,2})|number\s*(\d{1,2})|№\s*(\d{1,2})/) || []).slice(1).find(Boolean) || "";
   if (!subjects.length) throw new Error("no photo");
   const face = /лицом|спереди|анфас|в лицо/.test(normalize(prompt));
+  const action = photoAction(prompt);
   if (subjects.length > 1) {
     const phrases = [];
     for (const subject of subjects) {
@@ -1209,6 +1229,7 @@ export async function generateImage(prompt) {
   }
   const url = await findPhoto(subjects[0], turn, {
     face,
+    action,
     number: subjects[0].known && /Ronaldo|Messi|Ronaldinho/.test(subjects[0].query) ? number : ""
   });
   return { dataUrl: url, theme: "photo" };

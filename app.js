@@ -1,5 +1,5 @@
 
-import { generateImage, wantsImage, extractImagePrompt, photoSubjects } from "./generate.js?v=31";
+import { generateImage, wantsImage, extractImagePrompt, photoSubjects } from "./generate.js?v=32";
 import { trySolve } from "./knowledge.js?v=19";
 
 const NAME_KEY = "pupik_user_name";
@@ -679,6 +679,9 @@ function drawingCaption(question) {
     return `Вот фото: ${labels[0]} сбивает ${labels[1]}.`;
   }
   if (labels.length > 1) return `${again ? "Вот другие фото" : "Вот фото"}: ${labels.join(" и ")}.`;
+  if (labels.length === 1 && /забив|забил|(?:^|[^а-я])гол(?:а|у|ом|е|ы|ов)?(?:[^а-я]|$)/.test(q)) {
+    return `Вот фото: ${labels[0]} забивает гол.`;
+  }
   if (labels.length === 1) return again ? `Вот другое фото: ${labels[0]}.` : `Вот фото: ${labels[0]}.`;
   return "Вот фото.";
 }
