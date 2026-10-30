@@ -265,9 +265,13 @@ const bootStatus = document.getElementById("bootStatus");
 const bootBar = document.getElementById("bootBar");
 const register = document.getElementById("register");
 const registerForm = document.getElementById("registerForm");
+const registerTitle = document.getElementById("registerTitle");
+const registerSubmit = document.getElementById("registerSubmit");
+const cancelName = document.getElementById("cancelName");
 const nameInput = document.getElementById("nameInput");
 const profileName = document.getElementById("profileName");
 const profileIcon = document.getElementById("profileIcon");
+const profileButton = document.getElementById("profileButton");
 
 function setBoot(_text, percent) {
   if (bootStatus) bootStatus.textContent = "Загружаюсь";
@@ -417,6 +421,18 @@ function applyName() {
   const name = userName || "Pupik User";
   if (profileName) profileName.textContent = name;
   if (profileIcon) profileIcon.textContent = name.trim().charAt(0).toUpperCase() || "P";
+}
+
+function openNameForm() {
+  if (!register) return;
+  const changing = Boolean(userName);
+  if (registerTitle) registerTitle.textContent = changing ? "Новое имя" : "Как тебя зовут?";
+  if (registerSubmit) registerSubmit.textContent = changing ? "Сохранить" : "Войти";
+  if (cancelName) cancelName.hidden = !changing;
+  if (nameInput) nameInput.value = userName || "";
+  register.hidden = false;
+  nameInput?.focus();
+  nameInput?.select();
 }
 
 function showApp() {
@@ -639,6 +655,8 @@ function localAnswer(question) {
   if (/кто создател|кто создал|кто автор|who created|who made/.test(q)) {
     return "Создатель: Владимиров Роберт Павлович.";
   }
+  const who = whoAnswer(q);
+  if (who) return who;
   if (/гном/.test(q)) {
     return "Ты имел в виду Месси?";
   }
@@ -680,6 +698,19 @@ function localAnswer(question) {
   if (solved?.answer && !/нарисуй/.test(q)) return solved.answer;
 
   return "";
+}
+
+function whoAnswer(q) {
+  if (!/кто так|who is|who was/.test(q)) return "";
+  const people = [
+    [/ривалд|rivaldo/, "Ривалдо — бразильский футболист, Ривалдо Витор Борба Феррейра. Родился 19 апреля 1972 года. Атакующий полузащитник, левая нога. В 1999 году получил «Золотой мяч». Со сборной выиграл чемпионат мира 2002 года. Главные годы — «Барселона», 1997–2002."],
+    [/роналд[ьъ]?дин|ronaldinho/, "Роналдиньо — бразильский футболист Роналдо де Ассис Морейра. Родился 21 марта 1980 года. Чемпион мира 2002 года и обладатель «Золотого мяча» 2005 года. Звезда «Барселоны», его узнают по финтам."],
+    [/рона+л*д(?!ин)|криштиан|cristiano/, "Криштиану Роналду — португальский нападающий. Родился 5 февраля 1985 года. Играл за «Манчестер Юнайтед», «Реал», «Ювентус» и сборную Португалии. Пять «Золотых мячей», игровой номер 7."],
+    [/месси|messi/, "Лионель Месси — аргентинский нападающий. Родился 24 июня 1987 года. Долго играл в «Барселоне», потом в «ПСЖ» и «Интер Майами». Чемпион мира 2022 года."],
+    [/рамос|ramos/, "Серхио Рамос — испанский защитник. Родился 30 марта 1986 года. Капитан «Реала» и сборной Испании, чемпион мира 2010 года."]
+  ];
+  const hit = people.find(([pattern]) => pattern.test(q));
+  return hit ? named(hit[1]) : "";
 }
 
 function fallbackAnswer() {
@@ -888,7 +919,14 @@ registerForm?.addEventListener("submit", event => {
   if (!name) return;
   userName = name;
   localStorage.setItem(NAME_KEY, name);
+  renderMessages();
   showApp();
+});
+
+profileButton?.addEventListener("click", openNameForm);
+
+cancelName?.addEventListener("click", () => {
+  if (register) register.hidden = true;
 });
 
 startBootGame();

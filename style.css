@@ -82,12 +82,19 @@ body {
 
 .gate-card button {
   width: 100%;
+  margin-bottom: 8px;
   padding: 13px 16px;
   border: 0;
   border-radius: 12px;
   background: linear-gradient(135deg, #8c5cff, #4d8dff);
   color: white;
   font-weight: 700;
+}
+
+.gate-card button.ghost {
+  background: transparent;
+  border: 1px solid #3a3d4a;
+  color: #d5d3e0;
 }
 
 #bootGame {
@@ -246,12 +253,21 @@ button {
 }
 
 .sidebar-bottom {
-  display: flex;
-  align-items: center;
-  gap: 10px;
   margin-top: auto;
   padding-top: 15px;
   border-top: 1px solid #303039;
+}
+
+.profile-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
 }
 
 .sidebar-bottom strong, .sidebar-bottom small {
