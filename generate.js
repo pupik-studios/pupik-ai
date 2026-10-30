@@ -1009,8 +1009,8 @@ export function extractImagePrompt(text) {
  * @param {{ photoDataUrl?: string }} [opts]
  */
 const PHOTO_QUERIES = [
-  [/рональдин|ronaldinho/, "Ronaldinho", "Роналдиньо", /ronaldinho/i],
-  [/рона+л*д|криштиан|cr7/, "Cristiano Ronaldo", "Криштиану Роналду", /ronaldo/i],
+  [/ронал[ьъ]?дин|ronaldinho/, "Ronaldinho", "Роналдиньо", /ronaldinho/i],
+  [/рона+л*д(?!ин)|криштиан|cr7/, "Cristiano Ronaldo", "Криштиану Роналду", /ronaldo/i],
   [/месси|messi/, "Lionel Messi", "Месси", /messi/i],
   [/рамос|ramos/, "Sergio Ramos", "Серхио Рамос", /ramos/i],
   [/бургер|гамбургер|чизбургер|burger/, "hamburger", "бургер", /burger|hamburger/i],

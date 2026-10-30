@@ -1,5 +1,5 @@
 
-import { generateImage, wantsImage, extractImagePrompt, photoSubjects } from "./generate.js?v=32";
+import { generateImage, wantsImage, extractImagePrompt, photoSubjects } from "./generate.js?v=33";
 import { trySolve } from "./knowledge.js?v=19";
 
 const NAME_KEY = "pupik_user_name";
