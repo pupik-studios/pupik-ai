@@ -573,6 +573,9 @@ function localAnswer(question) {
   if (/что умеешь|личный помощник|кто ты/.test(q)) {
     return `Я Pupik AI${name ? ", помощник " + name : ""}. Пишу код, разбираю задачу по шагам, учу русский и показываю фото.${noteText()}`;
   }
+  if (/сколько/.test(q) && /кот/.test(q) && /пл[ао]нет|мир|земл/.test(q)) {
+    return `${name ? name + ", т" : "Т"}очного числа нет: кошек никто не переписывает всех сразу. Домашних оценивают примерно в 600 миллионов, а вместе с бездомными — около миллиарда.`;
+  }
 
   const code = codeAnswer(q);
   if (code) return code;
@@ -611,7 +614,7 @@ function imageFollowUp(question) {
   const q = question.toLowerCase().replace(/ё/g, "е");
   const pose = /лицом|спереди|анфас|в лицо|со спины|сзади/.test(q);
   if (wantsImage(question)) return "";
-  if (!pose && !/где|нет|не вижу|потеря/.test(q)) return "";
+  if (!pose && !/(?:^|[^а-я])где(?:[^а-я]|$)|(?:^|[^а-я])нет(?:[^а-я]|$)|не вижу|потеря/.test(q)) return "";
   if (!pose && !photoSubjects(q).some(item => item.known)) return "";
   const last = [...chatHistory].reverse().find(item => item.role === "user" && wantsImage(item.content));
   if (!last) return pose ? "" : question;
