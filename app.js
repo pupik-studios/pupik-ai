@@ -82,6 +82,9 @@ function renderHistory() {
   historyElement.innerHTML = "";
 
   chats.forEach(chat => {
+    const row = document.createElement("div");
+    row.className = "history-row";
+
     const button = document.createElement("button");
     button.className = "history-item";
     button.textContent = chat.title || "Новый чат";
@@ -91,8 +94,73 @@ function renderHistory() {
     }
 
     button.addEventListener("click", () => openChat(chat.id));
-    historyElement.appendChild(button);
+
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "history-delete";
+    remove.title = "Удалить чат";
+    remove.setAttribute("aria-label", "Удалить чат");
+    remove.textContent = "×";
+    remove.addEventListener("click", () => deleteChat(chat.id));
+
+    row.appendChild(button);
+    row.appendChild(remove);
+    historyElement.appendChild(row);
   });
+}
+
+function clearCurrentChat() {
+  if (generating) return;
+  if (!currentChatId) {
+    createChat();
+    return;
+  }
+
+  const chat = chats.find(item => item.id === currentChatId);
+  chatHistory = [];
+  if (chat) {
+    chat.messages = [];
+    chat.title = "Новый чат";
+  }
+
+  saveChats();
+  renderHistory();
+  renderMessages();
+  titleElement.textContent = "Новый диалог";
+  input.focus();
+}
+
+function deleteChat(id) {
+  if (generating) return;
+
+  chats = chats.filter(item => item.id !== id);
+
+  if (!chats.length) {
+    currentChatId = null;
+    chatHistory = [];
+    saveChats();
+    createChat();
+    return;
+  }
+
+  if (currentChatId === id) {
+    currentChatId = chats[0].id;
+    chatHistory = [...chats[0].messages];
+    titleElement.textContent = chats[0].title || "Новый диалог";
+    renderMessages();
+  }
+
+  saveChats();
+  renderHistory();
+}
+
+function deleteAllChats() {
+  if (generating) return;
+  chats = [];
+  currentChatId = null;
+  chatHistory = [];
+  saveChats();
+  createChat();
 }
 
 function createChat() {
@@ -601,6 +669,8 @@ input.addEventListener("keydown", event => {
 });
 
 newChatButton.addEventListener("click", createChat);
+document.getElementById("clearChat").addEventListener("click", clearCurrentChat);
+document.getElementById("deleteChats").addEventListener("click", deleteAllChats);
 
 menuButton.addEventListener("click", () => {
   sidebar.classList.toggle("open");

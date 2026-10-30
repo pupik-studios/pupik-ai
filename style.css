@@ -162,6 +162,58 @@ button {
   background: #302b40;
 }
 
+.chat-tools {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.tool-btn {
+  padding: 9px 8px;
+  border: 1px solid #41404f;
+  border-radius: 10px;
+  background: transparent;
+  color: #c8c6d4;
+  font-size: 12px;
+}
+
+.tool-btn:hover {
+  background: #302b40;
+  color: #fff;
+}
+
+.tool-btn.danger:hover {
+  border-color: #8a3d4a;
+  color: #ffb4be;
+}
+
+.history-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4px;
+  align-items: center;
+}
+
+.history-row .history-item {
+  min-width: 0;
+}
+
+.history-delete {
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #8d8a99;
+  font-size: 16px;
+}
+
+.history-delete:hover {
+  background: #3a2430;
+  color: #ffb4be;
+}
+
 .sidebar-label {
   margin: 30px 8px 12px;
   color: #777783;
