@@ -36,9 +36,7 @@
       <span>Pupik AI</span>
     </div>
 
-    <button class="new-chat" id="newChat">
-      <span>＋</span> Новый чат
-    </button>
+    <button class="new-chat" id="newChat">＋ Новый чат</button>
 
     <div class="sidebar-label">ТВОИ ЧАТЫ</div>
     <div class="history" id="history"></div>
@@ -53,17 +51,17 @@
   </aside>
 
   <main class="main">
-
     <header class="topbar">
       <button class="menu-button" id="menuButton">☰</button>
       <div class="top-title">Новый диалог</div>
       <div class="model-status">
         <span class="status-dot" id="statusDot"></span>
-        <span id="statusText">Проверка агента...</span>
+        <span id="statusText">Pupik AI</span>
       </div>
     </header>
 
     <section class="chat-area">
+
       <div class="welcome" id="welcome">
         <div class="welcome-logo">P</div>
         <h1>Привет! Я Pupik AI</h1>
@@ -73,25 +71,25 @@
           <button class="suggestion" data-prompt="Объясни мне сложную тему простыми словами">
             <span>📚</span>
             <strong>Объяснить тему</strong>
-            <small>Простые и понятные объяснения</small>
+            <small>Простые объяснения</small>
           </button>
 
           <button class="suggestion" data-prompt="Придумай интересную идею для проекта">
             <span>💡</span>
             <strong>Придумать идею</strong>
-            <small>Идеи для проектов и творчества</small>
+            <small>Идеи для проектов</small>
           </button>
 
           <button class="suggestion" data-prompt="Помоги написать программу">
             <span>💻</span>
             <strong>Написать код</strong>
-            <small>Помощь с программированием</small>
+            <small>Программирование</small>
           </button>
 
           <button class="suggestion" data-prompt="Расскажи что-нибудь интересное">
             <span>🌍</span>
             <strong>Узнать новое</strong>
-            <small>Интересные факты и открытия</small>
+            <small>Интересные факты</small>
           </button>
         </div>
       </div>
@@ -106,19 +104,16 @@
           placeholder="Напиши сообщение Pupik AI..."
           rows="1"
         ></textarea>
-        <button type="submit" id="sendButton" aria-label="Отправить">
-          ↑
-        </button>
+        <button type="submit" id="sendButton" aria-label="Отправить">↑</button>
       </form>
+
       <div class="disclaimer">
         Pupik AI может ошибаться. Проверяй важную информацию.
       </div>
     </footer>
-
   </main>
 </div>
 
 <script type="module" src="app.js"></script>
-
 </body>
 </html>
