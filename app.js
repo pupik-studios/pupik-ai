@@ -4,6 +4,7 @@ import { pipeline, env } from
 
 env.useBrowserCache = true;
 
+// Модель
 function isAppleMobile() {
   return /iPhone|iPad|iPod/.test(navigator.userAgent) ||
     (navigator.platform === "MacIntel" &&
@@ -14,6 +15,7 @@ const MODEL = isAppleMobile()
   ? "onnx-community/Qwen2.5-0.5B-Instruct"
   : "onnx-community/Qwen2.5-1.5B-Instruct";
 
+// Элементы нового index.html
 const messagesElement = document.getElementById("messages");
 const input = document.getElementById("messageInput");
 const form = document.getElementById("chatForm");
@@ -22,6 +24,22 @@ const welcome = document.getElementById("welcome");
 const historyElement = document.getElementById("history");
 const statusText = document.getElementById("statusText");
 const statusDot = document.getElementById("statusDot");
+
+const SYSTEM_PROMPT = `
+Ты — Pupik AI, самостоятельный искусственный интеллект.
+
+Правила:
+- Отвечай на вопросы пользователя.
+- Объясняй сложные темы простыми словами.
+- Помогай с программированием, математикой и идеями.
+- Общайся дружелюбно.
+- Не оценивай вопросы пользователя.
+- Не ставь баллы и рейтинги.
+- Не проверяй качество вопросов.
+- Не выдумывай факты.
+- Если пользователь пишет по-русски, отвечай по-русски.
+- Давай понятные и полезные ответы.
+`;
 
 let ai = null;
 let loadingPromise = null;
@@ -35,33 +53,37 @@ try {
   );
 
   if (Array.isArray(saved)) chats = saved;
-} catch {
-  chats = [];
+} catch (error) {
+  console.warn("Ошибка чтения истории:", error);
 }
 
 let currentChatId = null;
 
-const SYSTEM_PROMPT = `
-Ты — Pupik AI, самостоятельный искусственный интеллект.
+// Проверка HTML
+const requiredElements = {
+  messagesElement,
+  input,
+  form,
+  sendButton,
+  welcome,
+  historyElement,
+  statusText,
+  statusDot
+};
 
-Правила:
-- Отвечай на вопросы пользователя.
-- Объясняй сложные темы простыми словами.
-- Помогай с программированием и идеями.
-- Общайся дружелюбно.
-- Не оценивай вопросы пользователя.
-- Не ставь баллы и рейтинги.
-- Не проверяй качество вопросов.
-- Не выдумывай факты.
-- Если пользователь пишет по-русски, отвечай по-русски.
-- Давай понятные и полезные ответы.
-`;
+for (const [name, element] of Object.entries(requiredElements)) {
+  if (!element) {
+    console.error("Не найден элемент HTML:", name);
+  }
+}
 
+// Статус
 function setStatus(text, online = false) {
   statusText.textContent = text;
   statusDot.classList.toggle("online", online);
 }
 
+// История чатов
 function saveChats() {
   try {
     localStorage.setItem(
@@ -69,48 +91,8 @@ function saveChats() {
       JSON.stringify(chats)
     );
   } catch (error) {
-    console.warn("Ошибка сохранения:", error);
+    console.warn("Не удалось сохранить историю:", error);
   }
-}
-
-function addMessageToScreen(role, content) {
-  const message = document.createElement("div");
-
-  message.className =
-    "message " +
-    (role === "user" ? "user-message" : "ai-message");
-
-  const avatar = document.createElement("div");
-  avatar.className = "message-avatar";
-  avatar.textContent = role === "user" ? "Я" : "P";
-
-  const body = document.createElement("div");
-  body.className = "message-body";
-
-  const name = document.createElement("div");
-  name.className = "message-name";
-  name.textContent = role === "user" ? "Ты" : "Pupik AI";
-
-  const text = document.createElement("div");
-  text.className = "message-text";
-  text.textContent = content;
-
-  body.append(name, text);
-  message.append(avatar, body);
-  messagesElement.appendChild(message);
-
-  messagesElement.scrollTop = messagesElement.scrollHeight;
-}
-
-function renderMessages() {
-  messagesElement.innerHTML = "";
-
-  welcome.style.display =
-    chatHistory.length ? "none" : "block";
-
-  chatHistory.forEach(message => {
-    addMessageToScreen(message.role, message.content);
-  });
 }
 
 function createChat() {
@@ -168,6 +150,60 @@ function openChat(id) {
   document.getElementById("sidebar").classList.remove("open");
 }
 
+function renderMessages() {
+  messagesElement.innerHTML = "";
+
+  welcome.style.display =
+    chatHistory.length ? "none" : "block";
+
+  chatHistory.forEach(message => {
+    addMessageToScreen(message.role, message.content);
+  });
+}
+
+function addMessageToScreen(role, content) {
+  const message = document.createElement("div");
+
+  message.className =
+    "message " +
+    (role === "user" ? "user-message" : "ai-message");
+
+  const avatar = document.createElement("div");
+  avatar.className = "message-avatar";
+  avatar.textContent = role === "user" ? "Я" : "P";
+
+  const body = document.createElement("div");
+  body.className = "message-body";
+
+  const name = document.createElement("div");
+  name.className = "message-name";
+  name.textContent = role === "user" ? "Ты" : "Pupik AI";
+
+  const text = document.createElement("div");
+  text.className = "message-text";
+  text.textContent = content;
+
+  body.append(name, text);
+  message.append(avatar, body);
+
+  messagesElement.appendChild(message);
+  messagesElement.scrollTop = messagesElement.scrollHeight;
+}
+
+function addTyping() {
+  const typing = document.createElement("div");
+
+  typing.className = "typing";
+  typing.id = "typing";
+  typing.textContent = "Pupik AI думает…";
+
+  messagesElement.appendChild(typing);
+}
+
+function removeTyping() {
+  document.getElementById("typing")?.remove();
+}
+
 function saveCurrentChat() {
   const chat = chats.find(item => item.id === currentChatId);
   if (!chat) return;
@@ -185,21 +221,7 @@ function saveCurrentChat() {
     chat.title;
 }
 
-function addTyping() {
-  const typing = document.createElement("div");
-
-  typing.className = "typing";
-  typing.id = "typing";
-  typing.textContent = "Pupik AI думает…";
-
-  messagesElement.appendChild(typing);
-}
-
-function removeTyping() {
-  document.getElementById("typing")?.remove();
-}
-
-// Загрузка Qwen
+// Загрузка модели
 async function loadAI() {
   if (ai) return ai;
   if (loadingPromise) return loadingPromise;
@@ -208,51 +230,68 @@ async function loadAI() {
     sendButton.disabled = true;
     input.disabled = true;
 
-    setStatus("Загрузка нейросети…");
-
     try {
-      const device = isAppleMobile()
-        ? "wasm"
-        : (navigator.gpu ? "webgpu" : "wasm");
+      console.log("Начинаем загрузку:", MODEL);
+      console.log("WebGPU:", !!navigator.gpu);
 
-      console.log("Модель:", MODEL);
-      console.log("Устройство:", device);
+      let loadedAI;
 
-      const loadedAI = await pipeline(
-        "text-generation",
-        MODEL,
-        {
-          dtype: "q4",
-          device,
+      if (navigator.gpu && !isAppleMobile()) {
+        try {
+          setStatus("Запускаем Qwen через WebGPU…");
 
-          progress_callback(info) {
-            console.log("Загрузка:", info);
-
-            if (
-              info.status === "progress" &&
-              typeof info.progress === "number"
-            ) {
-              setStatus(
-                `Загрузка модели: ${Math.round(info.progress)}%`
-              );
-            } else if (info.status === "downloading") {
-              setStatus("Скачиваем файлы модели…");
-            } else if (info.status === "done") {
-              setStatus("Подготавливаем нейросеть…");
+          loadedAI = await pipeline(
+            "text-generation",
+            MODEL,
+            {
+              dtype: "q4",
+              device: "webgpu",
+              progress_callback: updateProgress
             }
-          }
+          );
+        } catch (gpuError) {
+          console.warn(
+            "WebGPU не запустился. Пробуем WASM:",
+            gpuError
+          );
+
+          setStatus("Переключаемся на WASM…");
+
+          loadedAI = await pipeline(
+            "text-generation",
+            MODEL,
+            {
+              dtype: "q4",
+              device: "wasm",
+              progress_callback: updateProgress
+            }
+          );
         }
-      );
+      } else {
+        setStatus("Загружаем Qwen через WASM…");
+
+        loadedAI = await pipeline(
+          "text-generation",
+          MODEL,
+          {
+            dtype: "q4",
+            device: "wasm",
+            progress_callback: updateProgress
+          }
+        );
+      }
 
       ai = loadedAI;
+
+      console.log("Qwen успешно загружен!");
       setStatus("Pupik AI готов!", true);
 
       return ai;
 
     } catch (error) {
-      console.error("Ошибка загрузки Qwen:", error);
+      console.error("ОШИБКА ЗАГРУЗКИ QWEN:", error);
 
-      setStatus("Не удалось загрузить Qwen");
+      setStatus("Ошибка загрузки модели");
 
       throw error;
 
@@ -266,7 +305,25 @@ async function loadAI() {
   return loadingPromise;
 }
 
-// Ответ модели
+// Прогресс загрузки
+function updateProgress(info) {
+  console.log("Pupik progress:", info);
+
+  if (
+    info.status === "progress" &&
+    typeof info.progress === "number"
+  ) {
+    setStatus(
+      `Загрузка модели: ${Math.round(info.progress)}%`
+    );
+  } else if (info.status === "downloading") {
+    setStatus("Скачиваем файлы модели…");
+  } else if (info.status === "done") {
+    setStatus("Файлы скачаны. Подготавливаем Qwen…");
+  }
+}
+
+// Извлечение ответа
 function extractAnswer(result) {
   const generated = result?.[0]?.generated_text;
 
@@ -306,7 +363,9 @@ async function sendMessage(text) {
   addTyping();
 
   try {
-    if (!ai) await loadAI();
+    if (!ai) {
+      await loadAI();
+    }
 
     setStatus("Pupik AI думает…", true);
 
@@ -343,20 +402,22 @@ async function sendMessage(text) {
     setStatus("Pupik AI готов!", true);
 
   } catch (error) {
-    console.error(error);
+    console.error("Ошибка:", error);
+
     removeTyping();
 
-    const errorMessage =
-      "Ошибка загрузки или генерации. Проверь Console.";
+    addMessageToScreen(
+      "Ошибка загрузки или генерации. Подробности находятся в Console.",
+      "assistant"
+    );
 
-    addMessageToScreen("assistant", errorMessage);
     setStatus("Ошибка нейросети");
+  } finally {
+    generating = false;
+    sendButton.disabled = false;
+    input.disabled = false;
+    input.focus();
   }
-
-  generating = false;
-  sendButton.disabled = false;
-  input.disabled = false;
-  input.focus();
 }
 
 // Форма
@@ -372,12 +433,14 @@ form.addEventListener("submit", event => {
   sendMessage(text);
 });
 
+// Автоматическая высота поля
 input.addEventListener("input", () => {
   input.style.height = "auto";
   input.style.height =
     Math.min(input.scrollHeight, 160) + "px";
 });
 
+// Enter отправляет сообщение
 input.addEventListener("keydown", event => {
   if (event.key === "Enter" && !event.shiftKey) {
     event.preventDefault();
@@ -385,6 +448,7 @@ input.addEventListener("keydown", event => {
   }
 });
 
+// Новый чат
 document.getElementById("newChat").addEventListener(
   "click",
   () => {
@@ -393,6 +457,7 @@ document.getElementById("newChat").addEventListener(
   }
 );
 
+// Меню
 document.getElementById("menuButton").addEventListener(
   "click",
   () => {
@@ -400,9 +465,10 @@ document.getElementById("menuButton").addEventListener(
   }
 );
 
+// Кнопки примеров
 document.querySelectorAll(".suggestion").forEach(button => {
   button.addEventListener("click", () => {
-    input.value = button.dataset.prompt;
+    input.value = button.dataset.prompt || button.textContent.trim();
     form.requestSubmit();
   });
 });
