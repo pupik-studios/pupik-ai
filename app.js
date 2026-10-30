@@ -214,11 +214,92 @@ const nameInput = document.getElementById("nameInput");
 const profileName = document.getElementById("profileName");
 const profileIcon = document.getElementById("profileIcon");
 
-function setBoot(text, percent) {
-  if (bootStatus) bootStatus.textContent = text;
+function setBoot(_text, percent) {
+  if (bootStatus) bootStatus.textContent = "Загружаюсь";
   if (bootBar && typeof percent === "number") {
     bootBar.style.width = `${Math.max(4, Math.min(100, percent))}%`;
   }
+}
+
+function startBootGame() {
+  const canvas = document.getElementById("bootGame");
+  if (!canvas) return;
+  const ctx = canvas.getContext("2d");
+  const w = canvas.width;
+  const h = canvas.height;
+  let y = h * 0.45;
+  let vy = 0;
+  let score = 0;
+  let best = 0;
+  const g = 0.35;
+
+  function kick() {
+    vy = -8.2;
+    score += 1;
+    if (score > best) best = score;
+  }
+
+  canvas.addEventListener("pointerdown", (event) => {
+    event.preventDefault();
+    kick();
+  });
+
+  window.addEventListener("keydown", (event) => {
+    if (boot?.hidden) return;
+    if (event.code === "Space" || event.code === "ArrowUp") {
+      event.preventDefault();
+      kick();
+    }
+  });
+
+  function frame() {
+    if (boot?.hidden) return;
+    vy += g;
+    y += vy;
+    if (y > h - 22) {
+      y = h - 22;
+      vy = 0;
+      score = 0;
+    }
+    if (y < 18) {
+      y = 18;
+      vy = 1;
+    }
+
+    ctx.fillStyle = "#1a6b3c";
+    ctx.fillRect(0, 0, w, h);
+    ctx.strokeStyle = "rgba(255,255,255,0.18)";
+    ctx.lineWidth = 2;
+    for (let x = 40; x < w; x += 46) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, h);
+      ctx.stroke();
+    }
+    ctx.strokeStyle = "rgba(255,255,255,0.45)";
+    ctx.strokeRect(18, 14, w - 36, h - 28);
+
+    ctx.fillStyle = "#f4f1ea";
+    ctx.beginPath();
+    ctx.arc(w / 2, y, 16, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "#1a1a1a";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(w / 2, y, 16, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.fillStyle = "#f4f1ea";
+    ctx.font = "700 16px sans-serif";
+    ctx.textAlign = "left";
+    ctx.fillText(String(score), 16, 28);
+    ctx.textAlign = "right";
+    ctx.fillText(String(best), w - 16, 28);
+
+    requestAnimationFrame(frame);
+  }
+
+  requestAnimationFrame(frame);
 }
 
 function applyName() {
@@ -250,7 +331,7 @@ async function loadAI() {
   if (ai) return ai;
   if (loadingPromise) return loadingPromise;
 
-  setBoot("Загрузка Qwen…", 6);
+  setBoot("Загружаюсь", 6);
 
   loadingPromise = (async () => {
     try {
@@ -265,15 +346,15 @@ async function loadAI() {
         progress_callback: info => {
           console.log("Pupik progress:", info);
           if (info.status === "progress" && typeof info.progress === "number") {
-            setBoot(`Загрузка Qwen: ${Math.round(info.progress)}%`, info.progress);
+            setBoot("Загружаюсь", info.progress);
           } else if (info.status === "initiate" || info.status === "download") {
-            setBoot("Скачивание Qwen…", 8);
+            setBoot("Загружаюсь", 8);
           }
         }
       });
 
       setStatus(true);
-      setBoot("Qwen готов", 100);
+      setBoot("Загружаюсь", 100);
       console.log("Pupik AI готов!");
 
       return ai;
@@ -281,7 +362,7 @@ async function loadAI() {
     } catch (error) {
       ai = null;
       console.error("Ошибка модели:", error);
-      setBoot("Не удалось загрузить Qwen", 100);
+      setBoot("Загружаюсь", 100);
       throw error;
 
     } finally {
@@ -466,6 +547,7 @@ registerForm?.addEventListener("submit", event => {
   showApp();
 });
 
+startBootGame();
 loadAI();
 
 console.log("Pupik AI запущен.");
