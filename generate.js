@@ -1050,15 +1050,47 @@ export function photoSubjects(prompt) {
   return rest ? [{ query: rest, label: rest, at: 0, known: false }] : [{ query: "landscape", label: "пейзаж", at: 0, known: false }];
 }
 
-async function findPhoto(query) {
+const PHOTO_VARIANTS = {
+  "Cristiano Ronaldo": [
+    "Cristiano Ronaldo Portugal",
+    "Cristiano Ronaldo Real Madrid",
+    "Cristiano Ronaldo Manchester United",
+    "Cristiano Ronaldo Juventus",
+    "Cristiano Ronaldo Al Nassr",
+    "CR7 football"
+  ],
+  cat: ["cat", "kitten", "tabby cat", "cat portrait", "cat playing"],
+  dog: ["dog", "puppy", "dog portrait", "dog running"],
+  hamburger: ["hamburger", "cheeseburger", "burger food"]
+};
+
+const seenPhotos = [];
+
+function photoTurn() {
+  try {
+    const next = Number(sessionStorage.getItem("pupik_photo_turn") || "0") + 1;
+    sessionStorage.setItem("pupik_photo_turn", String(next));
+    return next;
+  } catch {
+    return seenPhotos.length + 1;
+  }
+}
+
+function searchTerms(query, turn, extra) {
+  const variants = PHOTO_VARIANTS[query] || [query, `${query} portrait`, `${query} close`];
+  const term = variants[turn % variants.length];
+  return extra ? `${term} ${extra}` : term;
+}
+
+async function findPhoto(query, turn = 0, extra = "") {
   const params = new URLSearchParams({
     action: "query",
     format: "json",
     origin: "*",
     generator: "search",
-    gsrsearch: `${query} filetype:bitmap`,
+    gsrsearch: `${searchTerms(query, turn, extra)} filetype:bitmap`,
     gsrnamespace: "6",
-    gsrlimit: "12",
+    gsrlimit: "20",
     prop: "imageinfo",
     iiprop: "url|mime",
     iiurlwidth: "800"
@@ -1067,17 +1099,21 @@ async function findPhoto(query) {
   if (!response.ok) throw new Error("commons");
   const data = await response.json();
   const pages = Object.values(data.query?.pages || {});
-  const skip = /escultura|statue|sculpture|logo|icon|map|flag|diagram|drawing|sketch|svg|coat of arms|monument/i;
+  const skip = /escultura|statue|sculpture|logo|icon|map|flag|diagram|drawing|sketch|svg|coat of arms|monument|museum|museu|hotel/i;
   const photos = pages
     .map(page => ({
       title: page.title || "",
       info: page.imageinfo?.[0]
     }))
-    .filter(item => item.info && /jpeg|png|webp/.test(item.info.mime || "") && (item.info.thumburl || item.info.url))
-    .sort((a, b) => Number(skip.test(a.title)) - Number(skip.test(b.title)));
-  const photo = photos.find(item => !skip.test(item.title)) || photos[0];
-  if (!photo) throw new Error("no photo");
-  return photo.info.thumburl || photo.info.url;
+    .filter(item => item.info && /jpeg|png|webp/.test(item.info.mime || "") && (item.info.thumburl || item.info.url) && !skip.test(item.title));
+  if (!photos.length) throw new Error("no photo");
+  const fresh = photos.filter(item => !seenPhotos.includes(item.info.thumburl || item.info.url));
+  const pool = fresh.length ? fresh : photos;
+  const photo = pool[turn % pool.length];
+  const url = photo.info.thumburl || photo.info.url;
+  seenPhotos.push(url);
+  if (seenPhotos.length > 40) seenPhotos.shift();
+  return url;
 }
 
 async function collage(urls) {
@@ -1098,10 +1134,13 @@ async function collage(urls) {
 
 export async function generateImage(prompt) {
   const subjects = photoSubjects(prompt);
+  const turn = photoTurn();
+  const number = (normalize(prompt).match(/(?:номер|number|№)\s*(\d{1,2})/) || [])[1] || "";
   const urls = [];
   for (const subject of subjects) {
+    const extra = number && /Ronaldo|Messi/.test(subject.query) ? number : "";
     try {
-      urls.push(await findPhoto(subject.query));
+      urls.push(await findPhoto(subject.query, turn, extra));
     } catch (error) {
       console.warn("Фото не найдено:", subject.query, error);
     }

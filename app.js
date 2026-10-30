@@ -1,5 +1,5 @@
 
-import { generateImage, wantsImage, extractImagePrompt, photoSubjects } from "./generate.js?v=21";
+import { generateImage, wantsImage, extractImagePrompt, photoSubjects } from "./generate.js?v=22";
 import { trySolve } from "./knowledge.js?v=19";
 
 const NAME_KEY = "pupik_user_name";
@@ -601,8 +601,9 @@ function drawingCaption(question) {
   const q = question.toLowerCase().replace(/ё/g, "е");
   if (/учу русск|изучаю русск/.test(q)) remember("учит русский");
   const labels = photoSubjects(question).map(item => item.label);
-  if (labels.length > 1) return `Вот фото: ${labels.join(" и ")}.`;
-  if (labels.length === 1) return `Вот фото: ${labels[0]}.`;
+  const again = /друг|ещ[её]|another|different/.test(q);
+  if (labels.length > 1) return `${again ? "Вот другие фото" : "Вот фото"}: ${labels.join(" и ")}.`;
+  if (labels.length === 1) return again ? `Вот другое фото: ${labels[0]}.` : `Вот фото: ${labels[0]}.`;
   return "Вот фото.";
 }
 
