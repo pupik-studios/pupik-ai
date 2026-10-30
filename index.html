@@ -3,419 +3,339 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport"
-        content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#101114">
   <title>Pupik AI</title>
-  <style>
-    :root {
-      color-scheme: dark;
-      --bg: #101114;
-      --panel: #191a20;
-      --panel2: #22232b;
-      --text: #f4f4f7;
-      --muted: #a5a6b2;
-      --accent: #a78bfa;
-      --border: #30313b;
-    }
-
-    * { box-sizing: border-box; }
-
-    body {
-      margin: 0;
-      background: var(--bg);
-      color: var(--text);
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI",
-                   sans-serif;
-      min-height: 100dvh;
-    }
-
-    button, textarea { font: inherit; }
-
-    button {
-      cursor: pointer;
-      color: var(--text);
-      border: 1px solid var(--border);
-      background: var(--panel2);
-      border-radius: 12px;
-      padding: 10px 14px;
-    }
-
-    button:disabled {
-      opacity: .5;
-      cursor: not-allowed;
-    }
-
-    header {
-      position: sticky;
-      top: 0;
-      z-index: 2;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      padding: 14px max(16px, env(safe-area-inset-left));
-      background: rgba(16,17,20,.94);
-      border-bottom: 1px solid var(--border);
-      backdrop-filter: blur(16px);
-    }
-
-    .brand {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      font-weight: 750;
-      font-size: 18px;
-    }
-
-    .logo {
-      display: grid;
-      place-items: center;
-      width: 36px;
-      height: 36px;
-      border-radius: 12px;
-      background: var(--accent);
-      color: #171321;
-      font-weight: 900;
-    }
-
-    #status {
-      font-size: 12px;
-      color: var(--muted);
-      margin-top: 3px;
-    }
-
-    main {
-      width: min(850px, 100%);
-      margin: auto;
-      padding: 20px 16px 180px;
-    }
-
-    #welcome {
-      text-align: center;
-      padding: 15vh 8px 40px;
-    }
-
-    #welcome .big {
-      font-size: clamp(32px, 7vw, 52px);
-      font-weight: 850;
-      letter-spacing: -1.5px;
-    }
-
-    #welcome p {
-      color: var(--muted);
-      line-height: 1.6;
-    }
-
-    #messages {
-      display: flex;
-      flex-direction: column;
-      gap: 20px;
-    }
-
-    .message {
-      display: flex;
-      flex-direction: column;
-      gap: 7px;
-      max-width: 100%;
-    }
-
-    .message.user { align-items: flex-end; }
-
-    .role {
-      font-size: 12px;
-      color: var(--muted);
-      padding: 0 4px;
-    }
-
-    .bubble {
-      white-space: pre-wrap;
-      overflow-wrap: anywhere;
-      line-height: 1.65;
-      padding: 13px 16px;
-      border-radius: 17px;
-      max-width: 100%;
-    }
-
-    .user .bubble {
-      background: #29253a;
-      border: 1px solid #403858;
-      max-width: min(88%, 650px);
-    }
-
-    .assistant .bubble {
-      background: var(--panel);
-      border: 1px solid var(--border);
-      width: 100%;
-    }
-
-    .error { color: #ffaaaa; }
-
-    .composer-wrap {
-      position: fixed;
-      z-index: 3;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      padding: 12px 16px max(16px, env(safe-area-inset-bottom));
-      background: linear-gradient(transparent, var(--bg) 18%);
-    }
-
-    .composer {
-      display: flex;
-      align-items: flex-end;
-      gap: 10px;
-      width: min(850px, 100%);
-      margin: auto;
-      padding: 10px;
-      border: 1px solid #3b3c48;
-      background: var(--panel);
-      border-radius: 20px;
-      box-shadow: 0 10px 40px #0005;
-    }
-
-    textarea {
-      resize: none;
-      min-height: 44px;
-      max-height: 180px;
-      flex: 1;
-      width: 100%;
-      color: var(--text);
-      background: transparent;
-      border: 0;
-      outline: 0;
-      padding: 11px 5px;
-      line-height: 1.45;
-    }
-
-    #send {
-      background: var(--accent);
-      color: #171321;
-      border: 0;
-      font-weight: 750;
-      min-height: 44px;
-    }
-
-    .hint {
-      text-align: center;
-      font-size: 11px;
-      color: var(--muted);
-      padding-top: 8px;
-    }
-
-    @media (max-width: 500px) {
-      header { padding-top: 11px; padding-bottom: 11px; }
-      main { padding-left: 12px; padding-right: 12px; }
-      #welcome { padding-top: 12vh; }
-      .bubble { padding: 12px; }
-    }
-  </style>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <header>
+
+<!-- ПЕРВЫЙ ЭКРАН: ИГРА -->
+<section id="introScreen" class="intro-screen">
+  <div class="intro-top">
+    <div class="intro-brand"><span class="mini-logo">P</span> Pupik AI</div>
+    <button id="skipGame" class="skip-button">Пропустить →</button>
+  </div>
+
+  <div class="game-content">
+    <div class="game-heading">
+      <div class="game-kicker">WELCOME TO PUPIK AI</div>
+      <h1>Немного разминки?</h1>
+      <p>Прыгай через препятствия. Набери рекорд!</p>
+    </div>
+
+    <div class="game-frame">
+      <canvas id="gameCanvas" width="900" height="300"></canvas>
+      <div class="game-overlay" id="gameOver" hidden>
+        <h2>Игра окончена</h2>
+        <p>Счёт: <span id="finalScore">0</span></p>
+        <button id="restartGame">Играть ещё</button>
+      </div>
+    </div>
+
+    <div class="game-controls">
+      <span><kbd>ПРОБЕЛ</kbd> или клик — прыжок</span>
+      <span>Счёт: <strong id="score">0</strong></span>
+    </div>
+
+    <button id="enterChat" class="enter-chat">Перейти к Pupik AI <span>→</span></button>
+  </div>
+
+  <div class="intro-footer">PUPIK STUDIOS · MINI GAME</div>
+</section>
+
+<!-- ОСНОВНОЙ ЧАТ -->
+<div class="app" id="chatApp" hidden>
+
+  <aside class="sidebar">
     <div class="brand">
       <div class="logo">P</div>
       <div>
-        <div>Pupik AI</div>
-        <div id="status">Проверяю локальную модель…</div>
+        <strong>Pupik AI</strong>
+        <small>Твой AI-помощник</small>
       </div>
     </div>
-    <button id="newChat" type="button">＋ Новый чат</button>
-  </header>
 
-  <main>
-    <section id="welcome">
-      <div class="big">Привет!</div>
-      <p>Я Pupik AI — локальный помощник.<br>
-         Задай вопрос, и я постараюсь ответить.</p>
+    <button id="newChat" class="new-chat" type="button">
+      <span>＋</span> Новый чат
+    </button>
+
+    <div class="sidebar-caption">ПРОСТРАНСТВО</div>
+    <div class="sidebar-note">
+      <span class="sidebar-note-icon">✦</span>
+      <div>
+        <strong>Локальный ИИ</strong>
+        <small>Работает в браузере</small>
+      </div>
+    </div>
+
+    <div class="profile">
+      <div class="profile-avatar">P</div>
+      <div>
+        <strong>Pupik User</strong>
+        <small>Личный помощник</small>
+      </div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <div class="topbar-title">Рабочее пространство</div>
+      <div class="status-wrap">
+        <span class="status-dot"></span>
+        <span id="status">Подготовка нейросети…</span>
+      </div>
+    </header>
+
+    <section class="chat-area">
+      <div id="welcome" class="welcome">
+        <div class="welcome-symbol">✳</div>
+        <div class="welcome-label">PUPIK AI ASSISTANT</div>
+        <h1>С чего начнём?</h1>
+        <p>Напиши сообщение. Я помогу разобраться, придумать или создать.</p>
+
+        <div class="suggestions">
+          <button class="suggestion" type="button">
+            <span class="suggestion-icon">✦</span>
+            <strong>Придумай идею</strong>
+            <small>Для проекта или игры</small>
+          </button>
+          <button class="suggestion" type="button">
+            <span class="suggestion-icon">⌘</span>
+            <strong>Помоги с кодом</strong>
+            <small>Разберём программу</small>
+          </button>
+          <button class="suggestion" type="button">
+            <span class="suggestion-icon">▤</span>
+            <strong>Объясни тему</strong>
+            <small>Простыми словами</small>
+          </button>
+          <button class="suggestion" type="button">
+            <span class="suggestion-icon">◎</span>
+            <strong>Удиви меня</strong>
+            <small>Расскажи что-нибудь</small>
+          </button>
+        </div>
+      </div>
+
+      <div id="messages" aria-live="polite"></div>
     </section>
-    <section id="messages" aria-live="polite"></section>
+
+    <div class="composer-wrap">
+      <form id="form" class="composer">
+        <textarea
+          id="prompt"
+          rows="1"
+          placeholder="Напиши сообщение Pupik AI..."
+          aria-label="Сообщение"
+        ></textarea>
+        <button id="send" type="submit" aria-label="Отправить">↑</button>
+      </form>
+      <div class="hint">Pupik AI · Локальная нейросеть · Без платного API</div>
+    </div>
   </main>
+</div>
 
-  <div class="composer-wrap">
-    <form id="form" class="composer">
-      <textarea id="prompt" rows="1"
-        placeholder="Напиши сообщение…"
-        aria-label="Сообщение"></textarea>
-      <button id="send" type="submit">Отправить</button>
-    </form>
-    <div class="hint">Локальная модель на твоём Mac · Без платного API</div>
-  </div>
+<!-- ЛОГИКА МИНИ-ИГРЫ -->
+<script>
+(() => {
+  const intro = document.getElementById("introScreen");
+  const chat = document.getElementById("chatApp");
+  const canvas = document.getElementById("gameCanvas");
+  const ctx = canvas.getContext("2d");
+  const scoreEl = document.getElementById("score");
+  const gameOver = document.getElementById("gameOver");
+  const finalScore = document.getElementById("finalScore");
 
-  <script>
-    const statusEl = document.getElementById("status");
-    const welcome = document.getElementById("welcome");
-    const messagesEl = document.getElementById("messages");
-    const form = document.getElementById("form");
-    const promptEl = document.getElementById("prompt");
-    const sendBtn = document.getElementById("send");
-    const newChatBtn = document.getElementById("newChat");
+  const INTRO_KEY = "pupik-intro-seen-v1";
 
-    const HISTORY_KEY = "pupik-ai-history-v1";
-    let messages = [];
-    let busy = false;
+  let running = false;
+  let gameEnded = false;
+  let score = 0;
+  let speed = 5;
+  let frame = 0;
+  let obstacles = [];
+  let particles = [];
+  let player = { x: 100, y: 220, size: 30, vy: 0, grounded: true };
 
-    function setStatus(text) {
-      statusEl.textContent = text;
+  function enterChat() {
+    localStorage.setItem(INTRO_KEY, "yes");
+    intro.hidden = true;
+    chat.hidden = false;
+    running = false;
+  }
+
+  document.getElementById("skipGame").addEventListener("click", enterChat);
+  document.getElementById("enterChat").addEventListener("click", enterChat);
+
+  function resetGame() {
+    score = 0;
+    speed = 5;
+    frame = 0;
+    obstacles = [];
+    particles = [];
+    player = { x: 100, y: 220, size: 30, vy: 0, grounded: true };
+    gameEnded = false;
+    running = true;
+    gameOver.hidden = true;
+    scoreEl.textContent = "0";
+  }
+
+  function jump() {
+    if (!running || gameEnded) return;
+    if (player.grounded) {
+      player.vy = -13;
+      player.grounded = false;
+    }
+  }
+
+  function endGame() {
+    gameEnded = true;
+    running = false;
+    finalScore.textContent = Math.floor(score);
+    gameOver.hidden = false;
+  }
+
+  function drawBackground() {
+    ctx.fillStyle = "#11131b";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.strokeStyle = "#202534";
+    ctx.lineWidth = 1;
+
+    for (let x = 0; x < canvas.width; x += 40) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, canvas.height);
+      ctx.stroke();
     }
 
-    function saveHistory() {
-      try {
-        localStorage.setItem(HISTORY_KEY, JSON.stringify(messages));
-      } catch (e) {
-        console.warn("Не удалось сохранить историю", e);
+    for (let y = 0; y < canvas.height; y += 40) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(canvas.width, y);
+      ctx.stroke();
+    }
+
+    ctx.fillStyle = "#262c3b";
+    ctx.fillRect(0, 252, canvas.width, 3);
+
+    ctx.fillStyle = "#8a72e8";
+    ctx.fillRect(0, 252, canvas.width, 2);
+  }
+
+  function drawPlayer() {
+    ctx.save();
+    ctx.translate(player.x + player.size / 2, player.y + player.size / 2);
+    ctx.rotate(player.grounded ? Math.sin(frame * 0.12) * 0.04 : 0.5);
+
+    ctx.shadowColor = "#9277ff";
+    ctx.shadowBlur = 18;
+    ctx.fillStyle = "#a58bff";
+    ctx.fillRect(-15, -15, 30, 30);
+
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = "#171421";
+    ctx.fillRect(-7, -5, 5, 5);
+    ctx.fillRect(4, -5, 5, 5);
+    ctx.fillRect(-5, 5, 10, 3);
+
+    ctx.restore();
+  }
+
+  function drawObstacle(obstacle) {
+    ctx.fillStyle = "#ff6d83";
+    ctx.shadowColor = "#ff6d83";
+    ctx.shadowBlur = 12;
+
+    ctx.beginPath();
+    ctx.moveTo(obstacle.x, 252);
+    ctx.lineTo(obstacle.x + obstacle.width / 2, 252 - obstacle.height);
+    ctx.lineTo(obstacle.x + obstacle.width, 252);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.shadowBlur = 0;
+  }
+
+  function update() {
+    if (!running) return;
+
+    frame++;
+    score += 0.12;
+    speed = Math.min(10, 5 + score / 100);
+    scoreEl.textContent = Math.floor(score);
+
+    player.vy += 0.65;
+    player.y += player.vy;
+
+    if (player.y >= 220) {
+      player.y = 220;
+      player.vy = 0;
+      player.grounded = true;
+    }
+
+    if (frame % Math.max(48, Math.floor(90 - speed * 3)) === 0) {
+      const height = 30 + Math.random() * 22;
+      obstacles.push({
+        x: canvas.width + 20,
+        width: 25 + Math.random() * 10,
+        height
+      });
+    }
+
+    obstacles.forEach(obstacle => obstacle.x -= speed);
+    obstacles = obstacles.filter(obstacle => obstacle.x > -50);
+
+    for (const obstacle of obstacles) {
+      const hit =
+        player.x + player.size - 5 > obstacle.x + 5 &&
+        player.x + 5 < obstacle.x + obstacle.width - 5 &&
+        player.y + player.size - 4 > 252 - obstacle.height;
+
+      if (hit) {
+        endGame();
+        break;
       }
     }
+  }
 
-    function addBubble(role, text, isError = false) {
-      welcome.hidden = true;
+  function render() {
+    drawBackground();
+    obstacles.forEach(drawObstacle);
+    drawPlayer();
+  }
 
-      const article = document.createElement("article");
-      article.className = "message " + role;
+  function loop() {
+    update();
+    render();
+    requestAnimationFrame(loop);
+  }
 
-      const label = document.createElement("div");
-      label.className = "role";
-      label.textContent = role === "user" ? "Ты" : "Pupik AI";
-
-      const bubble = document.createElement("div");
-      bubble.className = "bubble" + (isError ? " error" : "");
-      bubble.textContent = text;
-
-      article.append(label, bubble);
-      messagesEl.appendChild(article);
-      window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
-      return bubble;
-    }
-
-    function renderHistory() {
-      messagesEl.replaceChildren();
-      welcome.hidden = messages.length > 0;
-
-      for (const message of messages) {
-        if (message.role === "user" || message.role === "assistant") {
-          addBubble(message.role, message.content);
-        }
-      }
-    }
-
-    async function checkStatus() {
-      try {
-        const response = await fetch("/api/status");
-        const data = await response.json();
-
-        if (!response.ok || !data.ok) {
-          setStatus("Ollama не найдена");
-          return;
-        }
-
-        if (!data.modelInstalled) {
-          setStatus("Сначала скачай модель на Mac");
-          return;
-        }
-
-        setStatus("● Локальная модель готова");
-      } catch (error) {
-        setStatus("Нет связи с локальным сервером");
-      }
-    }
-
-    async function sendMessage(text) {
-      if (busy || !text.trim()) return;
-
-      busy = true;
-      sendBtn.disabled = true;
-      promptEl.disabled = true;
-
-      messages.push({ role: "user", content: text.trim() });
-      addBubble("user", text.trim());
-      saveHistory();
-
-      const pending = addBubble("assistant", "Думаю…");
-
-      try {
-        const response = await fetch("/api/chat", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ messages })
-        });
-
-        const data = await response.json();
-
-        if (!response.ok) {
-          throw new Error(data.error || "Неизвестная ошибка");
-        }
-
-        const answer = (data.answer || "").trim();
-        if (!answer) throw new Error("Модель вернула пустой ответ");
-
-        pending.textContent = answer;
-        messages.push({ role: "assistant", content: answer });
-        saveHistory();
-        setStatus("● Локальная модель готова");
-      } catch (error) {
-        pending.textContent =
-          "Не удалось получить ответ.\n\n" + error.message +
-          "\n\nПроверь, что Ollama и server.py запущены на Mac.";
-        pending.classList.add("error");
-        setStatus("Ошибка соединения");
-      } finally {
-        busy = false;
-        sendBtn.disabled = false;
-        promptEl.disabled = false;
-        promptEl.focus();
-        window.scrollTo({
-          top: document.body.scrollHeight,
-          behavior: "smooth"
-        });
-      }
-    }
-
-    form.addEventListener("submit", async (event) => {
+  canvas.addEventListener("pointerdown", jump);
+  document.addEventListener("keydown", event => {
+    if (event.code === "Space" && !chat.hidden) return;
+    if (event.code === "Space" && !intro.hidden) {
       event.preventDefault();
-      const text = promptEl.value;
-      if (!text.trim() || busy) return;
-
-      promptEl.value = "";
-      promptEl.style.height = "44px";
-      await sendMessage(text);
-    });
-
-    promptEl.addEventListener("input", () => {
-      promptEl.style.height = "44px";
-      promptEl.style.height =
-        Math.min(promptEl.scrollHeight, 180) + "px";
-    });
-
-    promptEl.addEventListener("keydown", (event) => {
-      if (event.key === "Enter" && !event.shiftKey) {
-        event.preventDefault();
-        form.requestSubmit();
-      }
-    });
-
-    newChatBtn.addEventListener("click", () => {
-      if (busy) return;
-      messages = [];
-      saveHistory();
-      renderHistory();
-      promptEl.focus();
-    });
-
-    try {
-      const saved = JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]");
-      if (Array.isArray(saved)) {
-        messages = saved.filter(item =>
-          item &&
-          (item.role === "user" || item.role === "assistant") &&
-          typeof item.content === "string"
-        );
-      }
-    } catch (e) {
-      messages = [];
+      jump();
     }
+  });
 
-    renderHistory();
-    checkStatus();
-  </script>
+  document.getElementById("restartGame").addEventListener("click", resetGame);
+
+  if (localStorage.getItem(INTRO_KEY) === "yes") {
+    intro.hidden = true;
+    chat.hidden = false;
+  } else {
+    resetGame();
+  }
+
+  loop();
+})();
+</script>
+
+<!-- СУЩЕСТВУЮЩИЙ ИИ ИЗ РЕПОЗИТОРИЯ -->
+<script type="module" src="./app.js"></script>
+
 </body>
 </html>
