@@ -1,5 +1,5 @@
 
-import { generateImage, wantsImage, extractImagePrompt, photoSubjects } from "./generate.js?v=25";
+import { generateImage, wantsImage, extractImagePrompt, photoSubjects } from "./generate.js?v=26";
 import { trySolve } from "./knowledge.js?v=19";
 
 const NAME_KEY = "pupik_user_name";
@@ -673,7 +673,7 @@ async function sendMessage(text) {
         }
       } catch (error) {
         console.warn("Фото не найдено:", error);
-        answer = "Не нашёл фото. Напиши короче: кот, бургер или Роналду.";
+        answer = "Не нашёл фото по этим словам.";
       }
     } else {
       answer = localAnswer(question);

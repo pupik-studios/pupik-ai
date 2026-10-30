@@ -1047,7 +1047,25 @@ export function photoSubjects(prompt) {
     found.push({ query, label, title, at: match.index, known: true });
   }
   found.sort((a, b) => a.at - b.at);
-  return found.slice(0, 2);
+  if (found.length) return found.slice(0, 2);
+  const rest = p
+    .replace(/нарисуй|картинк\w*|фото\w*|рисунок\w*|друг\w*|лицом|спереди|анфас|вперед|вперёд/g, " ")
+    .replace(/номер[а-я]*\s*\d+|с\s+номером\s*\d+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!rest) return [];
+  return [{ query: rest, label: rest, title: null, at: 0, known: false }];
+}
+
+async function toEnglish(text) {
+  if (!/[а-я]/i.test(text)) return text;
+  const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=ru|en`;
+  const response = await fetch(url);
+  if (!response.ok) return text;
+  const data = await response.json();
+  const translated = data?.responseData?.translatedText || "";
+  if (!translated || /invalid|query length|mymemory/i.test(translated)) return text;
+  return translated;
 }
 
 const SEEN_KEY = "pupik_seen_photos";
@@ -1081,13 +1099,24 @@ function photoTurn() {
   }
 }
 
+function titleQuery(phrase) {
+  const words = String(phrase || "")
+    .split(/\s+/)
+    .map(word => word.replace(/[^\p{L}\p{N}-]/gu, ""))
+    .filter(word => word.length > 1);
+  if (!words.length) return "";
+  return words.map(word => `intitle:${word}`).join(" ");
+}
+
 async function searchPhotos(term, titlePattern) {
+  const titled = titleQuery(term);
+  if (!titled) return [];
   const params = new URLSearchParams({
     action: "query",
     format: "json",
     origin: "*",
     generator: "search",
-    gsrsearch: `${term} filetype:bitmap`,
+    gsrsearch: titled,
     gsrnamespace: "6",
     gsrlimit: "20",
     prop: "imageinfo",
@@ -1098,7 +1127,7 @@ async function searchPhotos(term, titlePattern) {
   if (!response.ok) throw new Error("commons");
   const data = await response.json();
   const pages = Object.values(data.query?.pages || {});
-  const skip = /escultura|statue|sculpture|logo|icon|map|flag|diagram|drawing|sketch|svg|coat of arms|monument|museum|museu|hotel|20120609|boots on display|river|lake|bridge|valley|street|road|village|district/i;
+  const skip = /escultura|statue|sculpture|logo|icon|\bmap\b|flag|diagram|drawing|sketch|svg|coat of arms|monument|museum|museu|hotel|20120609|boots on display|river|lake|bridge|valley|street|road|village|district|park|drive|dunes|geograph/i;
   return pages
     .map(page => ({
       title: page.title || "",
@@ -1111,14 +1140,16 @@ async function searchPhotos(term, titlePattern) {
 async function findPhoto(subject, turn = 0, options = {}) {
   const face = options.face;
   const number = options.number || "";
+  const phrase = subject.known ? subject.query : await toEnglish(subject.query);
+  const titlePattern = subject.title || new RegExp(phrase.split(/\s+/).filter(word => word.length > 2).map(word => word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|"), "i");
   const tries = [
-    face ? `${subject.query} portrait` : "",
-    number ? `${subject.query} ${number}` : "",
-    subject.query
+    face ? `${phrase} portrait` : "",
+    number ? `${phrase} ${number}` : "",
+    phrase
   ].filter(Boolean);
   let pool = [];
   for (const term of tries) {
-    const found = await searchPhotos(term, subject.title);
+    const found = await searchPhotos(term, titlePattern);
     pool.push(...found.filter(item => !pool.some(have => have.url === item.url)));
     if (pool.length >= 8) break;
   }
@@ -1161,7 +1192,7 @@ export async function generateImage(prompt) {
     try {
       urls.push(await findPhoto(subject, turn, {
         face,
-        number: /Ronaldo|Messi|Ronaldinho/.test(subject.query) ? number : ""
+        number: subject.known && /Ronaldo|Messi|Ronaldinho/.test(subject.query) ? number : ""
       }));
     } catch (error) {
       console.warn("Фото не найдено:", subject.query, error);
