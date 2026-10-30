@@ -343,7 +343,7 @@ button {
   width: min(850px, 100%);
   min-height: 0;
   margin: 0 auto;
-  padding: 30px 25px 130px;
+  padding: 30px 25px 168px;
 }
 
 .welcome {
@@ -464,6 +464,10 @@ button {
   overflow-wrap: anywhere;
 }
 
+.message-text a {
+  color: #c4b2ff;
+}
+
 .message-image {
   display: block;
   width: min(100%, 420px);
@@ -505,6 +509,35 @@ button {
   left: 250px;
   padding: 12px 22px 15px;
   background: linear-gradient(transparent, #101114 25%);
+}
+
+.agent-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: min(850px, 100%);
+  margin: 0 auto 8px;
+}
+
+.agent-toggle {
+  padding: 7px 12px;
+  border: 1px solid #45465a;
+  border-radius: 999px;
+  background: #20212b;
+  color: #eee;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.agent-toggle.active {
+  border-color: #49c99b;
+  background: #245c48;
+  color: #e9fff6;
+}
+
+.agent-hint {
+  color: #8d8fa0;
+  font-size: 12px;
 }
 
 .composer {
@@ -583,7 +616,7 @@ button {
   }
 
   .chat-area {
-    padding: 20px 14px 130px;
+    padding: 20px 14px 168px;
   }
 
   .welcome h1 {

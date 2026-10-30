@@ -209,7 +209,7 @@ function addMessageToScreen(role, content, image) {
   if (content) {
     const text = document.createElement("div");
     text.className = "message-text";
-    text.textContent = content;
+    fillMessage(text, content);
     body.appendChild(text);
   }
 
@@ -228,6 +228,63 @@ function addMessageToScreen(role, content, image) {
 
   messagesElement.appendChild(message);
   messagesElement.scrollTop = messagesElement.scrollHeight;
+}
+
+const AGENT_KEY = "pupik_agent";
+
+function agentOn() {
+  return localStorage.getItem(AGENT_KEY) === "1";
+}
+
+function fillMessage(element, content) {
+  element.replaceChildren();
+  const text = String(content || "");
+  const pattern = /https?:\/\/[^\s<>"']+/gi;
+  let last = 0;
+  for (const match of text.matchAll(pattern)) {
+    const index = match.index || 0;
+    if (index > last) element.append(document.createTextNode(text.slice(last, index)));
+    const raw = match[0];
+    const url = raw.replace(/[),.;!?]+$/, "");
+    const link = document.createElement("a");
+    link.href = url;
+    link.textContent = url;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    element.append(link);
+    if (url.length < raw.length) element.append(document.createTextNode(raw.slice(url.length)));
+    last = index + raw.length;
+  }
+  if (last < text.length) element.append(document.createTextNode(text.slice(last)));
+}
+
+function agentReply(question, answer, hasImage) {
+  if (!agentOn() || !answer) return answer;
+  const q = question.toLowerCase().replace(/ё/g, "е");
+  const links = [];
+  const add = (pattern, url) => {
+    if (pattern.test(q) && !answer.includes(url) && !links.includes(url)) links.push(url);
+  };
+  add(/ривалд|rivaldo/, "https://ru.wikipedia.org/wiki/Ривалдо");
+  add(/ронал[ьъ]?дин|ronaldinho/, "https://ru.wikipedia.org/wiki/Роналдиньо");
+  if (!/ронал[ьъ]?дин|ronaldinho/.test(q)) {
+    add(/рона+л*д(?!ин)|криштиан|cristiano/, "https://ru.wikipedia.org/wiki/Криштиану_Роналду");
+  }
+  add(/месси|messi/, "https://ru.wikipedia.org/wiki/Лионель_Месси");
+  add(/рамос|ramos/, "https://ru.wikipedia.org/wiki/Рамос,_Серхио");
+  add(/дроб/, "https://ru.wikipedia.org/wiki/Дробь_(математика)");
+  add(/питон|python/, "https://www.python.org/");
+  add(/визуал|visual code|vscode/, "https://code.visualstudio.com/");
+
+  let emoji = "✨";
+  if (hasImage || /фото|нарисуй/.test(q)) emoji = "📸";
+  else if (/програм|код|питон|python|функци/.test(q)) emoji = "💻";
+  else if (/объясн|дроб|понят/.test(q)) emoji = "📚";
+  else if (/кто так|ривалд|ронал|месси|рамос|футбол/.test(q)) emoji = "⚽";
+  else if (/привет|здравств|как дела/.test(q)) emoji = "👋";
+
+  const body = /\p{Extended_Pictographic}/u.test(answer) ? answer : `${emoji} ${answer}`;
+  return links.length ? `${body}\n\n🔗 ${links.join("\n")}` : body;
 }
 
 function addTyping() {
@@ -827,6 +884,7 @@ async function sendMessage(text) {
     }
 
     if (!answer && !image) answer = fallbackAnswer();
+    answer = agentReply(question, answer, Boolean(image));
 
     removeTyping();
 
@@ -843,7 +901,7 @@ async function sendMessage(text) {
     removeTyping();
     console.error("Ошибка Pupik AI:", error);
 
-    const errorMessage = localAnswer(question) || fallbackAnswer();
+    const errorMessage = agentReply(question, localAnswer(question) || fallbackAnswer(), false);
     chatHistory.push({
       role: "assistant",
       content: errorMessage
@@ -912,6 +970,28 @@ if (chats.length > 0) {
 
 setStatus(false);
 applyName();
+
+const agentMode = document.getElementById("agentMode");
+const agentHint = document.getElementById("agentHint");
+
+function syncAgent() {
+  const on = agentOn();
+  agentMode?.classList.toggle("active", on);
+  agentMode?.setAttribute("aria-pressed", on ? "true" : "false");
+  if (agentHint) agentHint.textContent = on ? "Смайлики и ссылки в ответе" : "Обычный диалог";
+  if (input) {
+    input.placeholder = on
+      ? "Напиши задачу агенту..."
+      : "Напиши сообщение Pupik AI...";
+  }
+}
+
+agentMode?.addEventListener("click", () => {
+  localStorage.setItem(AGENT_KEY, agentOn() ? "0" : "1");
+  syncAgent();
+});
+
+syncAgent();
 
 registerForm?.addEventListener("submit", event => {
   event.preventDefault();
