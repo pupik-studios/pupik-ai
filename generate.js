@@ -1009,6 +1009,7 @@ export function extractImagePrompt(text) {
  * @param {{ photoDataUrl?: string }} [opts]
  */
 const PHOTO_QUERIES = [
+  [/рональдин|ronaldinho/, "Ronaldinho", "Роналдиньо"],
   [/роналд|криштиан|cr7/, "Cristiano Ronaldo", "Криштиану Роналду"],
   [/месси|messi/, "Lionel Messi", "Месси"],
   [/бургер|гамбургер|чизбургер|burger/, "hamburger", "бургер"],
@@ -1046,8 +1047,18 @@ export function photoSubjects(prompt) {
   }
   found.sort((a, b) => a.at - b.at);
   if (found.length) return found.slice(0, 3);
-  const rest = p.replace(/нарисуй|картинк\w*|фото\w*|рисунок\w*/g, "").trim();
-  return rest ? [{ query: rest, label: rest, at: 0, known: false }] : [{ query: "landscape", label: "пейзаж", at: 0, known: false }];
+  const rest = p.replace(/нарисуй|картинк\w*|фото\w*|рисунок\w*|друг\w*|номер\w*|с\s+номером\s*\d+/g, "").trim();
+  const query = latinize(rest) || "landscape";
+  return [{ query, label: rest || "пейзаж", at: 0, known: false }];
+}
+
+function latinize(text) {
+  const map = {
+    а: "a", б: "b", в: "v", г: "g", д: "d", е: "e", ж: "zh", з: "z", и: "i", й: "y",
+    к: "k", л: "l", м: "m", н: "n", о: "o", п: "p", р: "r", с: "s", т: "t", у: "u",
+    ф: "f", х: "h", ц: "ts", ч: "ch", ш: "sh", щ: "sch", ы: "y", э: "e", ю: "yu", я: "ya"
+  };
+  return String(text || "").replace(/[а-я]/g, char => map[char] || "").replace(/\s+/g, " ").trim();
 }
 
 const PHOTO_VARIANTS = {
@@ -1059,12 +1070,32 @@ const PHOTO_VARIANTS = {
     "Cristiano Ronaldo Al Nassr",
     "CR7 football"
   ],
+  Ronaldinho: ["Ronaldinho", "Ronaldinho Barcelona", "Ronaldinho Gaucho"],
   cat: ["cat", "kitten", "tabby cat", "cat portrait", "cat playing"],
   dog: ["dog", "puppy", "dog portrait", "dog running"],
   hamburger: ["hamburger", "cheeseburger", "burger food"]
 };
 
-const seenPhotos = [];
+const SEEN_KEY = "pupik_seen_photos";
+
+function seenPhotos() {
+  try {
+    const saved = JSON.parse(sessionStorage.getItem(SEEN_KEY) || "[]");
+    return Array.isArray(saved) ? saved : [];
+  } catch {
+    return [];
+  }
+}
+
+function rememberPhoto(url) {
+  const next = seenPhotos().filter(item => item !== url);
+  next.push(url);
+  try {
+    sessionStorage.setItem(SEEN_KEY, JSON.stringify(next.slice(-40)));
+  } catch {
+    // Safari can block storage. The current answer still shows.
+  }
+}
 
 function photoTurn() {
   try {
@@ -1072,23 +1103,17 @@ function photoTurn() {
     sessionStorage.setItem("pupik_photo_turn", String(next));
     return next;
   } catch {
-    return seenPhotos.length + 1;
+    return seenPhotos().length + 1;
   }
 }
 
-function searchTerms(query, turn, extra) {
-  const variants = PHOTO_VARIANTS[query] || [query, `${query} portrait`, `${query} close`];
-  const term = variants[turn % variants.length];
-  return extra ? `${term} ${extra}` : term;
-}
-
-async function findPhoto(query, turn = 0, extra = "") {
+async function searchPhotos(term) {
   const params = new URLSearchParams({
     action: "query",
     format: "json",
     origin: "*",
     generator: "search",
-    gsrsearch: `${searchTerms(query, turn, extra)} filetype:bitmap`,
+    gsrsearch: `${term} filetype:bitmap`,
     gsrnamespace: "6",
     gsrlimit: "20",
     prop: "imageinfo",
@@ -1099,21 +1124,35 @@ async function findPhoto(query, turn = 0, extra = "") {
   if (!response.ok) throw new Error("commons");
   const data = await response.json();
   const pages = Object.values(data.query?.pages || {});
-  const skip = /escultura|statue|sculpture|logo|icon|map|flag|diagram|drawing|sketch|svg|coat of arms|monument|museum|museu|hotel/i;
-  const photos = pages
+  const skip = /escultura|statue|sculpture|logo|icon|map|flag|diagram|drawing|sketch|svg|coat of arms|monument|museum|museu|hotel|20120609|boots on display/i;
+  return pages
     .map(page => ({
       title: page.title || "",
-      info: page.imageinfo?.[0]
+      url: page.imageinfo?.[0]?.thumburl || page.imageinfo?.[0]?.url || ""
     }))
-    .filter(item => item.info && /jpeg|png|webp/.test(item.info.mime || "") && (item.info.thumburl || item.info.url) && !skip.test(item.title));
-  if (!photos.length) throw new Error("no photo");
-  const fresh = photos.filter(item => !seenPhotos.includes(item.info.thumburl || item.info.url));
-  const pool = fresh.length ? fresh : photos;
-  const photo = pool[turn % pool.length];
-  const url = photo.info.thumburl || photo.info.url;
-  seenPhotos.push(url);
-  if (seenPhotos.length > 40) seenPhotos.shift();
-  return url;
+    .filter(item => item.url && /jpe?g|png|webp/i.test(pageMime(pages, item.title)) && !skip.test(item.title));
+}
+
+function pageMime(pages, title) {
+  const page = pages.find(item => item.title === title);
+  return page?.imageinfo?.[0]?.mime || "";
+}
+
+async function findPhoto(query, turn = 0, extra = "") {
+  const variants = PHOTO_VARIANTS[query] || [query];
+  const seen = seenPhotos();
+  let pool = [];
+  for (let step = 0; step < variants.length && pool.length < 4; step += 1) {
+    const term = variants[(turn + step) % variants.length];
+    const found = await searchPhotos(extra ? `${term} ${extra}` : term);
+    pool.push(...found.filter(item => !pool.some(have => have.url === item.url)));
+  }
+  if (!pool.length && extra) pool = await searchPhotos(variants[turn % variants.length]);
+  const fresh = pool.filter(item => !seen.includes(item.url));
+  const choice = (fresh.length ? fresh : pool)[turn % Math.max(1, (fresh.length ? fresh : pool).length)];
+  if (!choice) throw new Error("no photo");
+  rememberPhoto(choice.url);
+  return choice.url;
 }
 
 async function collage(urls) {
@@ -1135,7 +1174,7 @@ async function collage(urls) {
 export async function generateImage(prompt) {
   const subjects = photoSubjects(prompt);
   const turn = photoTurn();
-  const number = (normalize(prompt).match(/(?:номер|number|№)\s*(\d{1,2})/) || [])[1] || "";
+  const number = (normalize(prompt).match(/номер[а-я]*\s*(\d{1,2})|number\s*(\d{1,2})|№\s*(\d{1,2})/) || []).slice(1).find(Boolean) || "";
   const urls = [];
   for (const subject of subjects) {
     const extra = number && /Ronaldo|Messi/.test(subject.query) ? number : "";
