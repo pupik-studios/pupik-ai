@@ -422,7 +422,7 @@ function looksLikeTask(text) {
   const n = normalize(text);
   if (isChatOnly(n)) return false;
   return (
-    /^(как|что\s+(?:мне\s+)?(?:надо|нужно)|помоги|how|what\s+do\s+i|help\s+me)\b/.test(n) ||
+    /^(как|что(\s+мне)?(\s+надо|\s+нужно)?|помоги|напиши|создай|сделай|how|what do i|help me|write|make|create)(\s|$)/.test(n) ||
     /(скачать|установить|настроить|починить|исправить|зарегистрир|выучить|купить|удалить|обновить|download|install|fix|configure|learn|buy|delete|update)/.test(
       n
     ) ||

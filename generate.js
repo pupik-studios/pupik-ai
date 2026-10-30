@@ -185,6 +185,12 @@ function detectTheme(prompt) {
       words: ["человек", "мальчик", "девочка", "мужчина", "женщина", "ребенок", "ребёнок", "person", "boy", "girl"],
       bg: "#d8eaff",
       fur: "#dca477"
+    },
+    {
+      id: "burger",
+      words: ["бургер", "гамбургер", "чизбургер", "burger"],
+      bg: "#f6e7c8",
+      fur: "#e2a04a"
     }
   ];
 
@@ -801,6 +807,25 @@ function drawPerson(ctx, fur) {
   line(ctx, 360, 390, 365, 435, "#303b58", 26);
 }
 
+function drawBurger(ctx) {
+  ctx.fillStyle = "#f6e7c8";
+  ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = "#d7b07a";
+  ctx.fillRect(0, 340, W, 140);
+
+  ellipse(ctx, 320, 318, 168, 46, "#e2a04a");
+  ellipse(ctx, 320, 292, 160, 20, "#6b3e26");
+  ellipse(ctx, 320, 274, 166, 14, "#f2c14e");
+  ellipse(ctx, 320, 260, 154, 16, "#67b35a");
+  ellipse(ctx, 320, 214, 170, 58, "#e7b15a");
+  ellipse(ctx, 320, 176, 128, 26, "#f0c36a");
+
+  circle(ctx, 250, 168, 7, "#f7f0d8");
+  circle(ctx, 300, 156, 7, "#f7f0d8");
+  circle(ctx, 348, 160, 7, "#f7f0d8");
+  circle(ctx, 392, 174, 6, "#f7f0d8");
+}
+
 function drawLandscape(ctx, rnd) {
   ctx.fillStyle = "#b9e2ff";
   ctx.fillRect(0, 0, W, H);
@@ -901,6 +926,9 @@ function drawScene(ctx, theme, rnd) {
       break;
     case "person":
       drawPerson(ctx, theme.fur);
+      break;
+    case "burger":
+      drawBurger(ctx);
       break;
     default:
       drawLandscape(ctx, rnd);

@@ -1,8 +1,8 @@
 
 import { pipeline, env } from
   "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1";
-import { generateImage, wantsImage, extractImagePrompt } from "./generate.js?v=16";
-import { trySolve } from "./knowledge.js";
+import { generateImage, wantsImage, extractImagePrompt } from "./generate.js?v=18";
+import { trySolve } from "./knowledge.js?v=18";
 
 env.useBrowserCache = true;
 
@@ -448,6 +448,7 @@ function showApp() {
   if (boot) boot.hidden = true;
   if (register) register.hidden = true;
   applyName();
+  setStatus(true);
   input.focus();
 }
 
@@ -548,6 +549,92 @@ function noteText() {
   return notes.length ? ` Помню: ${notes.join("; ")}.` : "";
 }
 
+function named(text) {
+  return userName ? `${userName}, ${text}` : text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+function codeAnswer(q) {
+  const game = /игр/.test(q) && /питон|python|наивн|програм|напиш|код/.test(q);
+  if (game) {
+    return named(`вот наивная игра на Python — угадай число от 1 до 20.
+
+\`\`\`python
+import random
+
+secret = random.randint(1, 20)
+print("Я загадал число от 1 до 20. Есть 5 попыток.")
+
+for attempt in range(1, 6):
+    guess = int(input(f"Попытка {attempt}: "))
+    if guess == secret:
+        print("Угадал!")
+        break
+    print("Больше." if guess < secret else "Меньше.")
+else:
+    print("Число было", secret)
+\`\`\`
+
+Сохрани как game.py и запусти: python3 game.py
+Нужна другая игра — напиши какая.`);
+  }
+
+  const program = /програм|код|скрипт|питон|python|функци/.test(q) && /напиш|помог|сделай|создай|програм/.test(q);
+  if (program) {
+    return named(`начнём с маленькой программы. Напиши, что она должна делать. Пока каркас на Python:
+
+\`\`\`python
+def main():
+    name = input("Как тебя зовут? ")
+    print(f"Привет, {name}. Программа работает.")
+
+if __name__ == "__main__":
+    main()
+\`\`\`
+
+Запуск: python3 main.py`);
+  }
+
+  return "";
+}
+
+function explainAnswer(q) {
+  if (!/объясн/.test(q)) return "";
+  return named(`возьмём функцию. Это кнопка с именем: даёшь ей данные, она делает одно дело и отдаёт результат.
+
+\`\`\`python
+def удвоить(число):
+    return число * 2
+
+print(удвоить(7))  # 14
+\`\`\`
+
+Напиши, какую тему разобрать дальше: Python, русский или футбол.`);
+}
+
+function ideaAnswer(q) {
+  if (!/иде|проект/.test(q)) return "";
+  return named(`три идеи на один вечер:
+
+1. Игра «угадай число» на Python. Напиши «напиши наивную игру в питон» — пришлю код.
+2. Тренажёр русских фраз: программа показывает слово, ты пишешь перевод.
+3. Мини-табло: вводишь счёт, программа говорит, кто победил.
+
+Назови номер — напишу программу.`);
+}
+
+function factAnswer(q) {
+  if (!/факт|интересн|расскажи|поболта/.test(q)) return "";
+  const lines = [
+    "Криштиану Роналду родился 5 февраля 1985 года. Номер 7 он носил в «Манчестер Юнайтед», «Реале» и сборной.",
+    "Python назвали не в честь змеи, а в честь шоу Monty Python.",
+    "В русском ударение часто меняет смысл: замок и замок, мука и мука."
+  ];
+  if (loadNotes().some(note => /русск/.test(note))) {
+    lines.push("Фраза для тренировки: «Я учусь говорить по-русски».");
+  }
+  return named("держи.\n\n" + lines.map((line, i) => `${i + 1}. ${line}`).join("\n"));
+}
+
 function localAnswer(question) {
   const q = question.toLowerCase().replace(/ё/g, "е");
   const name = userName || "";
@@ -562,8 +649,8 @@ function localAnswer(question) {
   if (/кто создател|кто создал|кто автор|who created|who made/.test(q)) {
     return "Создатель: Владимиров Роберт Павлович.";
   }
-  if (/^(привет|здравств|хай|hello|hi)\b/.test(q)) {
-    return `${name ? `Привет, ${name}` : "Привет"}. Я твой помощник: могу разобрать задачу по шагам, поучить русскому и нарисовать.${noteText()}`;
+  if (/^(привет|здравств|хай|hello|hi)(\s|$)/.test(q)) {
+    return `${name ? `Привет, ${name}` : "Привет"}. Я твой помощник: могу написать программу, рассказать факт, поучить русскому и нарисовать.${noteText()}`;
   }
   if (/как дела|как ты/.test(q)) {
     return `${name ? name + ", у" : "У"} меня всё в порядке. Чем помочь?${noteText()}`;
@@ -572,17 +659,30 @@ function localAnswer(question) {
     return `${name ? name + ", д" : "Д"}ержу это в голове. Фраза на сегодня: «Я учусь говорить по-русски». Слова: привет, спасибо, пожалуйста. Повтори их вслух, потом напиши своё предложение — поправлю.`;
   }
   if (/что умеешь|личный помощник|кто ты/.test(q)) {
-    return `Я личный помощник${name ? " " + name : ""}. Помогаю с делами, русским и рисунками. Скажи, что сделать.${noteText()}`;
+    return `Я личный помощник${name ? " " + name : ""}. Пишу код, разбираю задачу по шагам, учу русский и рисую.${noteText()}`;
   }
-  if (/помоги|напиши|сделай план|как /.test(q) && !/нарисуй/.test(q)) {
-    const solved = trySolve(question);
-    if (solved?.answer) return solved.answer;
-  }
+
+  const code = codeAnswer(q);
+  if (code) return code;
+
+  const explained = explainAnswer(q);
+  if (explained) return explained;
+
+  const idea = ideaAnswer(q);
+  if (idea) return idea;
+
+  const facts = factAnswer(q);
+  if (facts) return facts;
 
   const solved = trySolve(question);
   if (solved?.answer && !/нарисуй/.test(q)) return solved.answer;
 
-  return `${name ? name + ", я" : "Я"} понял. Напиши, что сделать: разобрать задачу, поучить русский или нарисовать.`;
+  return "";
+}
+
+function fallbackAnswer() {
+  const name = userName || "";
+  return `${name ? name + ", я" : "Я"} на связи. Могу написать программу, разобрать задачу, рассказать факт или нарисовать.`;
 }
 
 function drawingCaption(question) {
@@ -597,6 +697,7 @@ function drawingCaption(question) {
     return `${name ? name + ", н" : "Н"}арисовал тебя как Криштиану: белая форма и номер 7. ${/русск/.test(q) ? "Раз учишь русский, повтори: «Я учусь говорить по-русски»." : "Если нужно, могу ещё помочь с русским."}`;
   }
   if (ronaldo) return "Нарисовал Криштиану: белая форма, номер 7.";
+  if (/бургер|гамбургер|burger/.test(q)) return "Вот бургер.";
   return "Вот рисунок.";
 }
 
@@ -649,7 +750,11 @@ async function sendMessage(text) {
       const drawn = await generateImage(extractImagePrompt(question));
       image = drawn.dataUrl;
       answer = drawingCaption(question);
-    } else if (ai) {
+    } else {
+      answer = localAnswer(question);
+    }
+
+    if (!answer && !image && ai) {
       try {
         const prompt = [
           { role: "system", content: systemPrompt() },
@@ -670,8 +775,7 @@ async function sendMessage(text) {
         console.warn("Модель не успела, отвечаю сразу:", error);
       }
     }
-
-    if (!answer && !image) answer = localAnswer(question);
+    if (!answer && !image) answer = fallbackAnswer();
 
     removeTyping();
 
@@ -690,7 +794,7 @@ async function sendMessage(text) {
     removeTyping();
     console.error("Ошибка Pupik AI:", error);
 
-    const errorMessage = localAnswer(question);
+    const errorMessage = localAnswer(question) || fallbackAnswer();
     chatHistory.push({
       role: "assistant",
       content: errorMessage
