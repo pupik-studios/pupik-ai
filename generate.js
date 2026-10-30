@@ -145,8 +145,14 @@ function detectTheme(prompt) {
       fur: "#e63946"
     },
     {
+      id: "footballer",
+      words: ["роналд", "роналду", "криштиан", "криштиану", "месси", "футболист", "меня", "cr7"],
+      bg: "#b7e7c4",
+      fur: "#e0b088"
+    },
+    {
       id: "football",
-      words: ["футбол", "мяч", "роналд", "роналду", "месси", "football", "soccer", "ball", "cr7"],
+      words: ["футбол", "мяч", "football", "soccer", "ball"],
       bg: "#b5e8bb",
       fur: "#ffffff"
     },
@@ -732,6 +738,40 @@ function drawRobot(ctx, fur) {
   line(ctx, 370, 350, 380, 400, "#4b8f80", 20);
 }
 
+function drawFootballer(ctx, fur) {
+  ground(ctx, "#3e9a52");
+  ctx.fillStyle = "#2f7d40";
+  ctx.fillRect(0, 300, W, 180);
+
+  circle(ctx, 470, 360, 28, "#f7f7f7");
+  ctx.strokeStyle = "#222";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(470, 360, 28, 0, Math.PI * 2);
+  ctx.stroke();
+
+  polygon(ctx, [
+    [250, 250], [390, 250], [415, 390], [225, 390]
+  ], "#f4f4f4");
+
+  ctx.fillStyle = "#111";
+  ctx.font = "bold 42px sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillText("7", 320, 340);
+
+  ctx.fillStyle = fur;
+  ctx.fillRect(296, 214, 48, 42);
+  circle(ctx, 320, 168, 62, fur);
+  ellipse(ctx, 320, 128, 58, 26, "#2b241c");
+  eyes(ctx, 320, 168, 34);
+  line(ctx, 300, 198, 340, 198, "#8a5344", 3);
+
+  line(ctx, 258, 280, 190, 340, "#f4f4f4", 22);
+  line(ctx, 382, 280, 450, 330, "#f4f4f4", 22);
+  line(ctx, 275, 390, 268, 445, "#f4f4f4", 24);
+  line(ctx, 365, 390, 372, 445, "#f4f4f4", 24);
+}
+
 function drawPerson(ctx, fur) {
   ground(ctx);
 
@@ -840,6 +880,9 @@ function drawScene(ctx, theme, rnd) {
       break;
     case "car":
       drawCar(ctx, theme.fur);
+      break;
+    case "footballer":
+      drawFootballer(ctx, theme.fur);
       break;
     case "football":
       drawFootball(ctx);

@@ -1,7 +1,7 @@
 
 import { pipeline, env } from
   "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1";
-import { generateImage, wantsImage, extractImagePrompt } from "./generate.js";
+import { generateImage, wantsImage, extractImagePrompt } from "./generate.js?v=16";
 import { trySolve } from "./knowledge.js";
 
 env.useBrowserCache = true;
@@ -526,17 +526,78 @@ function extractAnswer(result) {
   return "";
 }
 
+const NOTES_KEY = "pupik_notes";
+
+function loadNotes() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(NOTES_KEY) || "[]");
+    return Array.isArray(saved) ? saved : [];
+  } catch {
+    return [];
+  }
+}
+
+function remember(note) {
+  const notes = loadNotes().filter(item => item !== note);
+  notes.unshift(note);
+  localStorage.setItem(NOTES_KEY, JSON.stringify(notes.slice(0, 12)));
+}
+
+function noteText() {
+  const notes = loadNotes();
+  return notes.length ? ` Помню: ${notes.join("; ")}.` : "";
+}
+
 function localAnswer(question) {
   const q = question.toLowerCase().replace(/ё/g, "е");
+  const name = userName || "";
+
+  if (/учу русск|изучаю русск|учу язык/.test(q)) {
+    remember("учит русский");
+  }
+  if (/люблю футбол|играю в футбол/.test(q)) {
+    remember("любит футбол");
+  }
+
   if (/кто создател|кто создал|кто автор|who created|who made/.test(q)) {
     return "Создатель: Владимиров Роберт Павлович.";
   }
   if (/^(привет|здравств|хай|hello|hi)\b/.test(q)) {
-    return userName ? `Привет, ${userName}. Я на связи.` : "Привет. Я на связи.";
+    return `${name ? `Привет, ${name}` : "Привет"}. Я твой помощник: могу разобрать задачу по шагам, поучить русскому и нарисовать.${noteText()}`;
   }
+  if (/как дела|как ты/.test(q)) {
+    return `${name ? name + ", у" : "У"} меня всё в порядке. Чем помочь?${noteText()}`;
+  }
+  if (/учу русск|изучаю русск|русский язык|по-русски/.test(q)) {
+    return `${name ? name + ", д" : "Д"}ержу это в голове. Фраза на сегодня: «Я учусь говорить по-русски». Слова: привет, спасибо, пожалуйста. Повтори их вслух, потом напиши своё предложение — поправлю.`;
+  }
+  if (/что умеешь|личный помощник|кто ты/.test(q)) {
+    return `Я личный помощник${name ? " " + name : ""}. Помогаю с делами, русским и рисунками. Скажи, что сделать.${noteText()}`;
+  }
+  if (/помоги|напиши|сделай план|как /.test(q) && !/нарисуй/.test(q)) {
+    const solved = trySolve(question);
+    if (solved?.answer) return solved.answer;
+  }
+
   const solved = trySolve(question);
-  if (solved?.answer) return solved.answer;
-  return "Я на связи. Могу ответить на задачу или нарисовать: напиши «нарисуй кота».";
+  if (solved?.answer && !/нарисуй/.test(q)) return solved.answer;
+
+  return `${name ? name + ", я" : "Я"} понял. Напиши, что сделать: разобрать задачу, поучить русский или нарисовать.`;
+}
+
+function drawingCaption(question) {
+  const q = question.toLowerCase().replace(/ё/g, "е");
+  const name = userName || "";
+  const aboutMe = /меня|я\b|себя/.test(q);
+  const ronaldo = /роналд|криштиан|cr7/.test(q);
+
+  if (/учу русск|изучаю русск/.test(q)) remember("учит русский");
+
+  if (ronaldo && aboutMe) {
+    return `${name ? name + ", н" : "Н"}арисовал тебя как Криштиану: белая форма и номер 7. ${/русск/.test(q) ? "Раз учишь русский, повтори: «Я учусь говорить по-русски»." : "Если нужно, могу ещё помочь с русским."}`;
+  }
+  if (ronaldo) return "Нарисовал Криштиану: белая форма, номер 7.";
+  return "Вот рисунок.";
 }
 
 function withTimeout(promise, ms) {
@@ -587,7 +648,7 @@ async function sendMessage(text) {
     if (wantsImage(question)) {
       const drawn = await generateImage(extractImagePrompt(question));
       image = drawn.dataUrl;
-      answer = "Вот, нарисовал.";
+      answer = drawingCaption(question);
     } else if (ai) {
       try {
         const prompt = [
