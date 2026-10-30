@@ -3,267 +3,419 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport"
+        content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#101114">
   <title>Pupik AI</title>
-  <link rel="stylesheet" href="./style.css">
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #101114;
+      --panel: #191a20;
+      --panel2: #22232b;
+      --text: #f4f4f7;
+      --muted: #a5a6b2;
+      --accent: #a78bfa;
+      --border: #30313b;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI",
+                   sans-serif;
+      min-height: 100dvh;
+    }
+
+    button, textarea { font: inherit; }
+
+    button {
+      cursor: pointer;
+      color: var(--text);
+      border: 1px solid var(--border);
+      background: var(--panel2);
+      border-radius: 12px;
+      padding: 10px 14px;
+    }
+
+    button:disabled {
+      opacity: .5;
+      cursor: not-allowed;
+    }
+
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 14px max(16px, env(safe-area-inset-left));
+      background: rgba(16,17,20,.94);
+      border-bottom: 1px solid var(--border);
+      backdrop-filter: blur(16px);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 750;
+      font-size: 18px;
+    }
+
+    .logo {
+      display: grid;
+      place-items: center;
+      width: 36px;
+      height: 36px;
+      border-radius: 12px;
+      background: var(--accent);
+      color: #171321;
+      font-weight: 900;
+    }
+
+    #status {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 3px;
+    }
+
+    main {
+      width: min(850px, 100%);
+      margin: auto;
+      padding: 20px 16px 180px;
+    }
+
+    #welcome {
+      text-align: center;
+      padding: 15vh 8px 40px;
+    }
+
+    #welcome .big {
+      font-size: clamp(32px, 7vw, 52px);
+      font-weight: 850;
+      letter-spacing: -1.5px;
+    }
+
+    #welcome p {
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    #messages {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .message {
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+      max-width: 100%;
+    }
+
+    .message.user { align-items: flex-end; }
+
+    .role {
+      font-size: 12px;
+      color: var(--muted);
+      padding: 0 4px;
+    }
+
+    .bubble {
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      line-height: 1.65;
+      padding: 13px 16px;
+      border-radius: 17px;
+      max-width: 100%;
+    }
+
+    .user .bubble {
+      background: #29253a;
+      border: 1px solid #403858;
+      max-width: min(88%, 650px);
+    }
+
+    .assistant .bubble {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      width: 100%;
+    }
+
+    .error { color: #ffaaaa; }
+
+    .composer-wrap {
+      position: fixed;
+      z-index: 3;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      padding: 12px 16px max(16px, env(safe-area-inset-bottom));
+      background: linear-gradient(transparent, var(--bg) 18%);
+    }
+
+    .composer {
+      display: flex;
+      align-items: flex-end;
+      gap: 10px;
+      width: min(850px, 100%);
+      margin: auto;
+      padding: 10px;
+      border: 1px solid #3b3c48;
+      background: var(--panel);
+      border-radius: 20px;
+      box-shadow: 0 10px 40px #0005;
+    }
+
+    textarea {
+      resize: none;
+      min-height: 44px;
+      max-height: 180px;
+      flex: 1;
+      width: 100%;
+      color: var(--text);
+      background: transparent;
+      border: 0;
+      outline: 0;
+      padding: 11px 5px;
+      line-height: 1.45;
+    }
+
+    #send {
+      background: var(--accent);
+      color: #171321;
+      border: 0;
+      font-weight: 750;
+      min-height: 44px;
+    }
+
+    .hint {
+      text-align: center;
+      font-size: 11px;
+      color: var(--muted);
+      padding-top: 8px;
+    }
+
+    @media (max-width: 500px) {
+      header { padding-top: 11px; padding-bottom: 11px; }
+      main { padding-left: 12px; padding-right: 12px; }
+      #welcome { padding-top: 12vh; }
+      .bubble { padding: 12px; }
+    }
+  </style>
 </head>
 <body>
-  <section id="loadingScreen" class="loading-screen">
-    <div class="logo">P</div>
-    <h1>Pupik AI</h1>
-    <p id="loadingText">Подключение искусственного интеллекта...</p>
-    <div class="progress-container">
-      <div id="progressBar" class="progress-bar"></div>
+  <header>
+    <div class="brand">
+      <div class="logo">P</div>
+      <div>
+        <div>Pupik AI</div>
+        <div id="status">Проверяю локальную модель…</div>
+      </div>
     </div>
-    <strong id="progressPercent">0%</strong>
-    <p class="loading-note">При первом запуске требуется загрузка модели.</p>
-    <button id="retryButton" class="button hidden">Повторить загрузку</button>
-  </section>
+    <button id="newChat" type="button">＋ Новый чат</button>
+  </header>
 
-  <div id="app" class="app hidden">
-    <aside class="sidebar">
-      <div class="brand"><span class="brand-icon">P</span> Pupik AI</div>
-      <button id="newChatButton" class="new-chat">＋ Новый чат</button>
-      <div class="sidebar-bottom">ИИ в твоём браузере</div>
-    </aside>
+  <main>
+    <section id="welcome">
+      <div class="big">Привет!</div>
+      <p>Я Pupik AI — локальный помощник.<br>
+         Задай вопрос, и я постараюсь ответить.</p>
+    </section>
+    <section id="messages" aria-live="polite"></section>
+  </main>
 
-    <main class="main">
-      <header class="topbar">
-        <div class="topbar-title">
-          <strong>Pupik AI</strong>
-          <span id="status">Загрузка...</span>
-        </div>
-        <button id="imageButton" class="image-button">🎨 Создать изображение</button>
-      </header>
-
-      <section id="messages" class="messages">
-        <div class="welcome" id="welcome">
-          <div class="welcome-logo">P</div>
-          <h1>Привет! Я Pupik AI</h1>
-          <p>Задай вопрос, попроси объяснить тему или придумать что-нибудь интересное.</p>
-          <div class="suggestions">
-            <button class="suggestion">Расскажи интересный факт</button>
-            <button class="suggestion">Придумай историю</button>
-            <button class="suggestion">Объясни, как работает ИИ</button>
-          </div>
-        </div>
-      </section>
-
-      <form id="chatForm" class="composer">
-        <textarea id="userInput" rows="1" placeholder="Напиши сообщение..." required></textarea>
-        <button id="sendButton" type="submit" aria-label="Отправить">➤</button>
-      </form>
-      <p class="disclaimer">Ответы ИИ могут содержать ошибки. Не сообщай личные данные.</p>
-    </main>
+  <div class="composer-wrap">
+    <form id="form" class="composer">
+      <textarea id="prompt" rows="1"
+        placeholder="Напиши сообщение…"
+        aria-label="Сообщение"></textarea>
+      <button id="send" type="submit">Отправить</button>
+    </form>
+    <div class="hint">Локальная модель на твоём Mac · Без платного API</div>
   </div>
 
-  <script type="module">
-    const $ = id => document.getElementById(id);
+  <script>
+    const statusEl = document.getElementById("status");
+    const welcome = document.getElementById("welcome");
+    const messagesEl = document.getElementById("messages");
+    const form = document.getElementById("form");
+    const promptEl = document.getElementById("prompt");
+    const sendBtn = document.getElementById("send");
+    const newChatBtn = document.getElementById("newChat");
 
-    const loadingScreen = $("loadingScreen");
-    const loadingText = $("loadingText");
-    const progressBar = $("progressBar");
-    const progressPercent = $("progressPercent");
-    const retryButton = $("retryButton");
-    const app = $("app");
-    const messages = $("messages");
-    const input = $("userInput");
-    const sendButton = $("sendButton");
-    const status = $("status");
-
-    const MODEL = "onnx-community/Qwen2.5-0.5B-Instruct";
-    let generator = null;
+    const HISTORY_KEY = "pupik-ai-history-v1";
+    let messages = [];
     let busy = false;
 
-    function progress(value, text) {
-      const n = Math.max(0, Math.min(100, Math.round(value || 0)));
-      progressBar.style.width = n + "%";
-      progressPercent.textContent = n + "%";
-      if (text) loadingText.textContent = text;
+    function setStatus(text) {
+      statusEl.textContent = text;
     }
 
-    function onProgress(info) {
-      if (typeof info.progress === "number") {
-        progress(info.progress, "Загрузка файла модели...");
-      } else if (info.status === "initiate") {
-        progress(0, "Подготовка файла модели...");
-      } else if (info.status === "done") {
-        loadingText.textContent = "Файл загружен, подготовка...";
+    function saveHistory() {
+      try {
+        localStorage.setItem(HISTORY_KEY, JSON.stringify(messages));
+      } catch (e) {
+        console.warn("Не удалось сохранить историю", e);
       }
     }
 
-    async function loadModel() {
-      retryButton.classList.add("hidden");
-      app.classList.add("hidden");
-      loadingScreen.classList.remove("hidden");
-      progress(0, "Подключение библиотеки ИИ...");
+    function addBubble(role, text, isError = false) {
+      welcome.hidden = true;
 
+      const article = document.createElement("article");
+      article.className = "message " + role;
+
+      const label = document.createElement("div");
+      label.className = "role";
+      label.textContent = role === "user" ? "Ты" : "Pupik AI";
+
+      const bubble = document.createElement("div");
+      bubble.className = "bubble" + (isError ? " error" : "");
+      bubble.textContent = text;
+
+      article.append(label, bubble);
+      messagesEl.appendChild(article);
+      window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
+      return bubble;
+    }
+
+    function renderHistory() {
+      messagesEl.replaceChildren();
+      welcome.hidden = messages.length > 0;
+
+      for (const message of messages) {
+        if (message.role === "user" || message.role === "assistant") {
+          addBubble(message.role, message.content);
+        }
+      }
+    }
+
+    async function checkStatus() {
       try {
-        const { pipeline, env } = await import(
-          "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.2"
-        );
+        const response = await fetch("/api/status");
+        const data = await response.json();
 
-        env.allowLocalModels = false;
-        env.useBrowserCache = true;
-
-        loadingText.textContent = "Загрузка модели...";
-
-        try {
-          generator = await pipeline("text-generation", MODEL, {
-            dtype: "q4",
-            device: "webgpu",
-            progress_callback: onProgress
-          });
-        } catch (error) {
-          console.warn("Переключение на WASM:", error);
-          generator = await pipeline("text-generation", MODEL, {
-            dtype: "q4",
-            device: "wasm",
-            progress_callback: onProgress
-          });
+        if (!response.ok || !data.ok) {
+          setStatus("Ollama не найдена");
+          return;
         }
 
-        progress(100, "Модель готова!");
+        if (!data.modelInstalled) {
+          setStatus("Сначала скачай модель на Mac");
+          return;
+        }
 
-        // Сначала скрываем загрузку, затем показываем приложение.
-        loadingScreen.classList.add("hidden");
-        app.classList.remove("hidden");
-        status.textContent = "ИИ готов";
-        input.focus();
+        setStatus("● Локальная модель готова");
       } catch (error) {
-        console.error("Ошибка загрузки модели:", error);
-        loadingText.textContent =
-          "Не удалось загрузить модель. Проверь подключение к интернету и попробуй снова.";
-        retryButton.classList.remove("hidden");
+        setStatus("Нет связи с локальным сервером");
       }
     }
 
-    function addMessage(text, role) {
-      $("welcome")?.remove();
+    async function sendMessage(text) {
+      if (busy || !text.trim()) return;
 
-      const row = document.createElement("div");
-      row.className = "message " + role;
-
-      const avatar = document.createElement("div");
-      avatar.className = "avatar";
-      avatar.textContent = role === "user" ? "Ты" : "P";
-
-      const body = document.createElement("div");
-      body.className = "message-content";
-      body.textContent = text;
-
-      row.append(avatar, body);
-      messages.appendChild(row);
-      messages.scrollTop = messages.scrollHeight;
-      return body;
-    }
-
-    function resetChat() {
-      messages.innerHTML = `
-        <div class="welcome" id="welcome">
-          <div class="welcome-logo">P</div>
-          <h1>Новый чат</h1>
-          <p>Чем я могу помочь?</p>
-          <div class="suggestions">
-            <button class="suggestion">Расскажи интересный факт</button>
-            <button class="suggestion">Придумай историю</button>
-          </div>
-        </div>`;
-
-      messages.querySelectorAll(".suggestion").forEach(button => {
-        button.addEventListener("click", () => sendMessage(button.textContent));
-      });
-    }
-
-    async function sendMessage(rawText) {
-      const text = rawText.trim();
-      if (!text || busy || !generator) return;
-
-      addMessage(text, "user");
-      input.value = "";
       busy = true;
-      sendButton.disabled = true;
-      status.textContent = "Думаю...";
+      sendBtn.disabled = true;
+      promptEl.disabled = true;
 
-      const answer = addMessage("Думаю...", "assistant");
+      messages.push({ role: "user", content: text.trim() });
+      addBubble("user", text.trim());
+      saveHistory();
+
+      const pending = addBubble("assistant", "Думаю…");
 
       try {
-        const result = await generator(text, {
-          max_new_tokens: 220,
-          do_sample: true,
-          temperature: 0.7,
-          repetition_penalty: 1.1,
-          return_full_text: false
+        const response = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ messages })
         });
 
-        let output = result?.[0]?.generated_text;
+        const data = await response.json();
 
-        if (Array.isArray(output)) {
-          output = output.map(part => part.content || "").join("");
+        if (!response.ok) {
+          throw new Error(data.error || "Неизвестная ошибка");
         }
 
-        answer.textContent = typeof output === "string" && output.trim()
-          ? output.trim()
-          : "Не удалось сформировать ответ. Попробуй задать вопрос по-другому.";
+        const answer = (data.answer || "").trim();
+        if (!answer) throw new Error("Модель вернула пустой ответ");
+
+        pending.textContent = answer;
+        messages.push({ role: "assistant", content: answer });
+        saveHistory();
+        setStatus("● Локальная модель готова");
       } catch (error) {
-        console.error(error);
-        answer.textContent = "Ошибка генерации. Попробуй ещё раз.";
+        pending.textContent =
+          "Не удалось получить ответ.\n\n" + error.message +
+          "\n\nПроверь, что Ollama и server.py запущены на Mac.";
+        pending.classList.add("error");
+        setStatus("Ошибка соединения");
       } finally {
         busy = false;
-        sendButton.disabled = false;
-        status.textContent = "ИИ готов";
-        messages.scrollTop = messages.scrollHeight;
-        input.focus();
+        sendBtn.disabled = false;
+        promptEl.disabled = false;
+        promptEl.focus();
+        window.scrollTo({
+          top: document.body.scrollHeight,
+          behavior: "smooth"
+        });
       }
     }
 
-    $("chatForm").addEventListener("submit", event => {
+    form.addEventListener("submit", async (event) => {
       event.preventDefault();
-      sendMessage(input.value);
+      const text = promptEl.value;
+      if (!text.trim() || busy) return;
+
+      promptEl.value = "";
+      promptEl.style.height = "44px";
+      await sendMessage(text);
     });
 
-    $("newChatButton").addEventListener("click", resetChat);
-    retryButton.addEventListener("click", loadModel);
-
-    document.querySelectorAll(".suggestion").forEach(button => {
-      button.addEventListener("click", () => sendMessage(button.textContent));
+    promptEl.addEventListener("input", () => {
+      promptEl.style.height = "44px";
+      promptEl.style.height =
+        Math.min(promptEl.scrollHeight, 180) + "px";
     });
 
-    input.addEventListener("keydown", event => {
+    promptEl.addEventListener("keydown", (event) => {
       if (event.key === "Enter" && !event.shiftKey) {
         event.preventDefault();
-        $("chatForm").requestSubmit();
+        form.requestSubmit();
       }
     });
 
-    $("imageButton").addEventListener("click", () => {
-      const prompt = window.prompt("Какое изображение создать?");
-      if (!prompt?.trim()) return;
-
-      const url =
-        "https://image.pollinations.ai/prompt/" +
-        encodeURIComponent(prompt.trim()) +
-        "?width=1024&height=1024&nologo=true";
-
-      addMessage("Создай изображение: " + prompt, "user");
-      const body = addMessage("Загружаю изображение...", "assistant");
-
-      const image = document.createElement("img");
-      image.className = "generated-image";
-      image.alt = prompt;
-      image.src = url;
-
-      image.onload = () => {
-        body.textContent = "";
-        body.appendChild(image);
-      };
-
-      image.onerror = () => {
-        body.textContent = "Не удалось загрузить изображение. Попробуй позже.";
-      };
+    newChatBtn.addEventListener("click", () => {
+      if (busy) return;
+      messages = [];
+      saveHistory();
+      renderHistory();
+      promptEl.focus();
     });
 
-    loadModel();
+    try {
+      const saved = JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]");
+      if (Array.isArray(saved)) {
+        messages = saved.filter(item =>
+          item &&
+          (item.role === "user" || item.role === "assistant") &&
+          typeof item.content === "string"
+        );
+      }
+    } catch (e) {
+      messages = [];
+    }
+
+    renderHistory();
+    checkStatus();
   </script>
 </body>
 </html>
