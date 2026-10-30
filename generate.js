@@ -1187,23 +1187,25 @@ export async function generateImage(prompt) {
   const number = (normalize(prompt).match(/номер[а-я]*\s*(\d{1,2})|number\s*(\d{1,2})|№\s*(\d{1,2})/) || []).slice(1).find(Boolean) || "";
   if (!subjects.length) throw new Error("no photo");
   const face = /лицом|спереди|анфас|в лицо/.test(normalize(prompt));
-  const urls = [];
-  for (const subject of subjects) {
-    try {
-      urls.push(await findPhoto(subject, turn, {
-        face,
-        number: subject.known && /Ronaldo|Messi|Ronaldinho/.test(subject.query) ? number : ""
-      }));
-    } catch (error) {
-      console.warn("Фото не найдено:", subject.query, error);
+  if (subjects.length > 1) {
+    const phrases = [];
+    for (const subject of subjects) {
+      phrases.push(subject.known ? subject.query : await toEnglish(subject.query));
     }
+    const words = phrases.map(phrase => phrase.split(/\s+/).pop());
+    const found = await searchPhotos(words.join(" "), /[\s\S]/);
+    const together = found.filter(item => subjects.every((subject, index) => {
+      if (subject.title) return subject.title.test(item.title);
+      return new RegExp(phrases[index].split(/\s+/).pop(), "i").test(item.title);
+    }));
+    const choice = together[0];
+    if (!choice) throw new Error("no photo");
+    rememberPhoto(choice.url);
+    return { dataUrl: choice.url, theme: "photo" };
   }
-  if (!urls.length) throw new Error("no photo");
-  if (urls.length === 1) return { dataUrl: urls[0], theme: "photo" };
-  try {
-    return { dataUrl: await collage(urls), theme: "photo" };
-  } catch (error) {
-    console.warn("Коллаж не собрался:", error);
-    return { dataUrl: urls[0], theme: "photo" };
-  }
+  const url = await findPhoto(subjects[0], turn, {
+    face,
+    number: subjects[0].known && /Ronaldo|Messi|Ronaldinho/.test(subjects[0].query) ? number : ""
+  });
+  return { dataUrl: url, theme: "photo" };
 }
