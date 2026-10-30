@@ -1,118 +1,326 @@
-/**
- * Режим агента: запускает саб-агентов-критиков (локально),
- * они ставят оценку /10 и правят черновик ответа.
- */
 
-function hash(str) {
-  let h = 2166136261;
-  for (let i = 0; i < String(str).length; i++) {
-    h ^= str.charCodeAt(i);
-    h = Math.imul(h, 16777619);
+const AgentMode = (() => {
+  let enabled = false;
+  let pendingAction = null;
+  let projectDirectory = null;
+
+  const $ = (id) => document.getElementById(id);
+
+  function addStyles() {
+    if ($("agent-mode-styles")) return;
+
+    const style = document.createElement("style");
+    style.id = "agent-mode-styles";
+    style.textContent = `
+      .agent-toolbar {
+        display:flex; gap:8px; align-items:center;
+        flex-wrap:wrap; margin:10px 0;
+      }
+      .agent-toggle, .agent-folder {
+        border:1px solid #45465a; border-radius:10px;
+        padding:9px 13px; background:#20212b;
+        color:#eee; cursor:pointer; font-weight:600;
+      }
+      .agent-toggle.active {
+        background:#245c48; border-color:#49c99b;
+      }
+      .agent-status { color:#aaa; font-size:12px; }
+      .agent-card {
+        border:1px solid #55566b; border-radius:12px;
+        padding:14px; margin:10px 0; background:#191a24;
+        color:#eee; overflow-wrap:anywhere;
+      }
+      .agent-card pre {
+        white-space:pre-wrap; overflow-wrap:anywhere;
+        max-height:240px; overflow:auto;
+        background:#101117; padding:10px; border-radius:8px;
+      }
+      .agent-actions { display:flex; gap:8px; margin-top:12px; }
+      .agent-actions button {
+        padding:9px 12px; border:0; border-radius:8px;
+        cursor:pointer; font-weight:600;
+      }
+      .agent-approve { background:#36b987; color:#071b13; }
+      .agent-reject { background:#383947; color:white; }
+    `;
+    document.head.appendChild(style);
   }
-  return h >>> 0;
-}
 
-/** @typedef {{ id: string, name: string, nameEn: string, focus: string }} Critic */
+  function addToolbar() {
+    if ($("agent-toolbar")) return;
 
-/** @type {Critic[]} */
-const CRITICS = [
-  {
-    id: "strict",
-    name: "Критик · строгость",
-    nameEn: "Critic · strict",
-    focus: "ясность, факты, нет воды",
-  },
-  {
-    id: "ux",
-    name: "Критик · польза",
-    nameEn: "Critic · usefulness",
-    focus: "практичность шагов для пользователя",
-  },
-  {
-    id: "tone",
-    name: "Критик · тон",
-    nameEn: "Critic · tone",
-    focus: "живой тон Pupik, без канцелярита",
-  },
-];
+    const form = $("composer");
+    if (!form) return;
 
-function scoreDraft(draft, userText, criticId) {
-  const d = String(draft || "");
-  const u = String(userText || "");
-  let score = 6.5;
-  if (d.length > 40) score += 0.6;
-  if (d.length > 120) score += 0.4;
-  if (/\d+\./.test(d) || /план|шаг|step/i.test(d)) score += 0.8;
-  if (/pupik|хала|владимиров/i.test(d)) score += 0.2;
-  if (d.length < 25) score -= 1.5;
-  if (/уточни|добавь деталь|держу контекст/i.test(d) && u.length > 8) score -= 1.2;
-  if (criticId === "strict" && /(?:^|\n).{120,}/.test(d)) score -= 0.3;
-  if (criticId === "ux" && !/(как|шаг|1\.|сделай|открой|how|step)/i.test(d) && /как|что сделать|how/i.test(u)) {
-    score -= 0.8;
+    addStyles();
+
+    const toolbar = document.createElement("div");
+    toolbar.id = "agent-toolbar";
+    toolbar.className = "agent-toolbar";
+
+    const toggle = document.createElement("button");
+    toggle.type = "button";
+    toggle.id = "agent-toggle";
+    toggle.className = "agent-toggle";
+    toggle.textContent = "⚡ Режим агента: выкл";
+
+    const folder = document.createElement("button");
+    folder.type = "button";
+    folder.className = "agent-folder";
+    folder.textContent = "📁 Выбрать папку";
+
+    const status = document.createElement("span");
+    status.id = "agent-status";
+    status.className = "agent-status";
+    status.textContent = "Папка не выбрана";
+
+    toggle.addEventListener("click", () => {
+      enabled = !enabled;
+      toggle.classList.toggle("active", enabled);
+      toggle.textContent = enabled
+        ? "⚡ Режим агента: вкл"
+        : "⚡ Режим агента: выкл";
+
+      status.textContent = enabled
+        ? "Агент ждёт задачу"
+        : "Обычный режим";
+    });
+
+    folder.addEventListener("click", chooseFolder);
+
+    toolbar.append(toggle, folder, status);
+    form.parentNode.insertBefore(toolbar, form);
   }
-  if (criticId === "tone" && /уважаемый|прошу прощения|согласно/i.test(d)) score -= 0.7;
-  const jitter = ((hash(criticId + d) % 17) - 8) * 0.05;
-  score = Math.max(3, Math.min(9.7, score + jitter));
-  return Math.round(score * 10) / 10;
-}
 
-function gapsFor(critic, score, lang) {
-  const need = Math.max(0, Math.round((10 - score) * 2) / 2);
-  if (lang === "en") {
-    if (critic.id === "strict") return need ? `Cut fluff; add ${need} concrete facts.` : "Tight enough.";
-    if (critic.id === "ux") return need ? `Add clearer next actions (−${need} to 10).` : "Actionable.";
-    return need ? `More Pupik voice, less template (−${need}).` : "Tone OK.";
-  }
-  if (critic.id === "strict") return need ? `Убрать воду; добавить ${need} конкретики.` : "Достаточно чётко.";
-  if (critic.id === "ux") return need ? `Нужны более ясные следующие шаги (до 10 не хватает ~${need}).` : "Полезно.";
-  return need ? `Живее тон Pupik, меньше шаблона (−${need}).` : "Тон ок.";
-}
-
-function polish(draft, userText, lang, avg) {
-  let out = String(draft || "").trim();
-  if (!out) {
-    return lang === "en"
-      ? "Agent mode: empty draft — ask again with a clearer goal."
-      : "Режим агента: черновик пуст — уточни цель.";
-  }
-  if (avg < 7.5 && !/^\[агент\]/i.test(out) && !/^\[agent\]/i.test(out)) {
-    const tip =
-      lang === "en"
-        ? "\n\n— Agent note: critics asked for sharper steps; refined below."
-        : "\n\n— Заметка агента: критики просили чётче шаги; чуть усилил ответ.";
-    if (out.length < 80 && /как|how|что сделать/i.test(userText)) {
-      out +=
-        lang === "en"
-          ? "\n1) Clarify the goal in one line.\n2) Do the smallest next step.\n3) Check the result."
-          : "\n1) Сформулируй цель в одной фразе.\n2) Сделай самый маленький следующий шаг.\n3) Проверь результат.";
+  async function chooseFolder() {
+    if (!window.showDirectoryPicker) {
+      alert(
+        "Выбор папки не поддерживается этим браузером. " +
+        "Открой Pupik AI в актуальном Chrome или Edge."
+      );
+      return;
     }
-    out += tip;
+
+    try {
+      projectDirectory = await window.showDirectoryPicker({
+        mode: "readwrite"
+      });
+
+      $("agent-status").textContent =
+        "Папка: " + projectDirectory.name;
+    } catch (error) {
+      if (error.name !== "AbortError") {
+        alert("Не удалось выбрать папку проекта.");
+      }
+    }
   }
-  const header = lang === "en" ? "[agent · critics]" : "[агент · критики]";
-  return `${header}\n${out}`;
-}
 
-/**
- * Запуск саб-агентов-критиков над черновиком ответа.
- * @returns {{ final: string, reports: { name: string, score: number, gaps: string }[], avg: number }}
- */
-export function runCriticAgents(draft, userText, lang = "ru") {
-  const reports = CRITICS.map((c) => {
-    const score = scoreDraft(draft, userText, c.id);
-    return {
-      id: c.id,
-      name: lang === "en" ? c.nameEn : c.name,
-      score,
-      gaps: gapsFor(c, score, lang),
-    };
-  });
-  const avg = Math.round((reports.reduce((s, r) => s + r.score, 0) / reports.length) * 10) / 10;
-  const final = polish(draft, userText, lang, avg);
-  return { final, reports, avg };
-}
+  function showCard(title, details, onApprove, onReject) {
+    const log = $("log");
+    if (!log) return;
 
-export function formatCriticReport(reports, avg, lang = "ru") {
-  const title = lang === "en" ? `Critics average: ${avg}/10` : `Критики · среднее: ${avg}/10`;
-  const lines = reports.map((r) => `• ${r.name}: ${r.score}/10 — ${r.gaps}`);
-  return [title, ...lines].join("\n");
+    const card = document.createElement("section");
+    card.className = "agent-card";
+
+    const heading = document.createElement("strong");
+    heading.textContent = title;
+
+    const description = document.createElement("p");
+    description.textContent = details;
+
+    const actions = document.createElement("div");
+    actions.className = "agent-actions";
+
+    const approve = document.createElement("button");
+    approve.className = "agent-approve";
+    approve.textContent = "Разрешить";
+
+    const reject = document.createElement("button");
+    reject.className = "agent-reject";
+    reject.textContent = "Отклонить";
+
+    approve.addEventListener("click", async () => {
+      approve.disabled = true;
+      reject.disabled = true;
+
+      try {
+        await onApprove();
+      } catch (error) {
+        alert("Ошибка: " + error.message);
+      } finally {
+        card.remove();
+        pendingAction = null;
+      }
+    });
+
+    reject.addEventListener("click", () => {
+      onReject?.();
+      card.remove();
+      pendingAction = null;
+    });
+
+    actions.append(approve, reject);
+    card.append(heading, description, actions);
+    log.appendChild(card);
+    log.scrollTop = log.scrollHeight;
+  }
+
+  function requestPermission(title, details, action) {
+    if (pendingAction) {
+      alert("Сначала разреши или отклони текущее действие.");
+      return;
+    }
+
+    pendingAction = action;
+
+    showCard(
+      "🔐 Агент запрашивает разрешение",
+      title + "\n\n" + details,
+      async () => {
+        await action();
+      },
+      () => {
+        const status = $("agent-status");
+        if (status) status.textContent = "Действие отклонено";
+      }
+    );
+  }
+
+  async function listFiles() {
+    if (!projectDirectory) {
+      alert("Сначала нажми «Выбрать папку».");
+      return;
+    }
+
+    const names = [];
+
+    for await (const [name, handle] of projectDirectory.entries()) {
+      names.push((handle.kind === "directory" ? "📁 " : "📄 ") + name);
+    }
+
+    showCard(
+      "📂 Файлы проекта",
+      names.length ? names.join("\n") : "Папка пустая",
+      async () => {},
+      () => {}
+    );
+  }
+
+  async function readFile(name) {
+    if (!projectDirectory) {
+      throw new Error("Сначала выбери папку проекта.");
+    }
+
+    if (
+      !/^[\w .()-]+\.(js|mjs|cjs|html|css|json|md|txt|py|ts)$/i.test(name)
+    ) {
+      throw new Error("Недопустимое имя файла.");
+    }
+
+    const handle = await projectDirectory.getFileHandle(name);
+    const file = await handle.getFile();
+    return await file.text();
+  }
+
+  function proposeFileWrite(name, content) {
+    if (!projectDirectory) {
+      alert("Сначала выбери папку проекта.");
+      return;
+    }
+
+    if (
+      !/^[\w .()-]+\.(js|mjs|cjs|html|css|json|md|txt|py|ts)$/i.test(name)
+    ) {
+      alert("Недопустимое имя файла.");
+      return;
+    }
+
+    requestPermission(
+      "Изменить файл " + name + "?",
+      "Будет записано новое содержимое файла. Старое содержимое будет заменено.\n\n" +
+        String(content).slice(0, 2500),
+      async () => {
+        const handle = await projectDirectory.getFileHandle(name);
+        const writable = await handle.createWritable();
+        await writable.write(content);
+        await writable.close();
+
+        const status = $("agent-status");
+        if (status) status.textContent = "Изменён файл: " + name;
+      }
+    );
+  }
+
+  function handleCommand(text) {
+    if (!enabled) return false;
+
+    const command = text.trim();
+
+    if (/^(покажи|список)\s+(файлы|файлов)|^list files$/i.test(command)) {
+      requestPermission(
+        "Посмотреть список файлов проекта",
+        "Агент прочитает названия файлов в выбранной папке.",
+        listFiles
+      );
+      return true;
+    }
+
+    const readMatch = command.match(
+      /^(?:прочитай|открой|покажи код файла)\s+([\w .()-]+\.(?:js|mjs|cjs|html|css|json|md|txt|py|ts))$/i
+    );
+
+    if (readMatch) {
+      requestPermission(
+        "Прочитать файл " + readMatch[1],
+        "Агент прочитает содержимое файла из выбранной папки.",
+        async () => {
+          const content = await readFile(readMatch[1]);
+          showCard("📄 " + readMatch[1], content, async () => {}, () => {});
+        }
+      );
+      return true;
+    }
+
+    addMessage(
+      "Режим агента включён. Я могу просматривать файлы и записывать " +
+      "предложенное содержимое после твоего разрешения. Для автоматического " +
+      "исправления кода нужна подключённая языковая модель."
+    );
+    return true;
+  }
+
+  function addMessage(text) {
+    const log = $("log");
+    if (!log) return;
+
+    const row = document.createElement("div");
+    row.className = "row ai";
+
+    const bubble = document.createElement("div");
+    bubble.className = "bubble";
+    bubble.textContent = text;
+
+    row.appendChild(bubble);
+    log.appendChild(row);
+    log.scrollTop = log.scrollHeight;
+  }
+
+  function init() {
+    addToolbar();
+  }
+
+  return {
+    init,
+    isEnabled: () => enabled,
+    handleCommand,
+    proposeFileWrite
+  };
+})();
+
+window.AgentMode = AgentMode;
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", AgentMode.init);
+} else {
+  AgentMode.init();
 }

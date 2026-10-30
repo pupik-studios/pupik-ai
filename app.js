@@ -1,507 +1,321 @@
-import { createPupikBrain } from "./brain.js?v=10";
-import { generateImage } from "./generate.js?v=10";
-import { runCriticAgents, formatCriticReport } from "./agent.js?v=10";
+import { pipeline, env } from "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1";
 
-const STORE_KEY = "pupik-ai-chats-v5";
+const MODEL = "onnx-community/Qwen2.5-1.5B-Instruct";
+const NAME_KEY = "pupik_user_name";
 
-const log = document.getElementById("log");
-const form = document.getElementById("composer");
-const input = document.getElementById("input");
-const fileInput = document.getElementById("file");
-const clearBtn = document.getElementById("clear-chat");
-const agentBtn = document.getElementById("agent-mode");
-const newChatBtn = document.getElementById("new-chat");
-const chatListEl = document.getElementById("chat-list");
-const statusEl = document.getElementById("status");
+env.useBrowserCache = true;
 
-let agentMode = localStorage.getItem("pupik-agent-mode") === "1";
+const boot = document.getElementById("boot");
+const bootStatus = document.getElementById("bootStatus");
+const bootBar = document.getElementById("bootBar");
+const register = document.getElementById("register");
+const registerForm = document.getElementById("registerForm");
+const nameInput = document.getElementById("nameInput");
+const messagesElement = document.getElementById("messages");
+const input = document.getElementById("messageInput");
+const form = document.getElementById("chatForm");
+const sendButton = document.getElementById("sendButton");
+const welcome = document.getElementById("welcome");
+const historyElement = document.getElementById("history");
+const statusText = document.getElementById("statusText");
+const statusDot = document.getElementById("statusDot");
+const profileName = document.getElementById("profileName");
+const profileIcon = document.getElementById("profileIcon");
 
-let chats = [];
-let activeId = "";
-/** @type {ReturnType<typeof createPupikBrain>} */
-let brain;
+let ai = null;
+let modelReady = false;
+let modelError = "";
+let waiting = false;
+let userName = localStorage.getItem(NAME_KEY) || "";
+let chatHistory = [];
+let chats = JSON.parse(localStorage.getItem("pupik_chats") || "[]");
+let currentChatId = null;
 
-function uid() {
-  return `c_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
+function systemPrompt() {
+  return `Ты — Pupik AI на модели Qwen.
+Создатель: Владимиров Роберт Павлович.
+Пользователя зовут ${userName || "друг"}.
+Отвечай дружелюбно и по существу, на языке пользователя.
+Не выдумывай факты, которых не знаешь.`;
 }
 
-function loadStore() {
-  try {
-    const raw = JSON.parse(localStorage.getItem(STORE_KEY) || "null");
-    if (raw && Array.isArray(raw.chats) && raw.chats.length) {
-      chats = raw.chats.map((c) => ({
-        id: c.id || uid(),
-        title: c.title || "Чат",
-        messages: Array.isArray(c.messages) ? c.messages : [],
-        brain: c.brain || null,
-        updated: c.updated || Date.now(),
-      }));
-      activeId = raw.activeId && chats.some((c) => c.id === raw.activeId) ? raw.activeId : chats[0].id;
-      return;
-    }
-  } catch {
-    /* ignore */
-  }
-  const id = uid();
-  chats = [{ id, title: "Чат 1", messages: [], brain: null, updated: Date.now() }];
-  activeId = id;
-}
-
-function saveStore() {
-  const active = chats.find((c) => c.id === activeId);
-  if (active && brain) active.brain = brain.snapshot();
-  // картинки тяжёлые — храним последние без гигантских dataUrl если переполнение
-  const pack = {
-    activeId,
-    chats: chats.map((c) => ({
-      id: c.id,
-      title: c.title,
-      messages: c.messages.slice(-120).map((m) => {
-        if (m.image && m.image.length > 180000) {
-          return { ...m, image: "", text: (m.text || "") + "\n[картинка не сохранена — слишком большая]" };
-        }
-        return m;
-      }),
-      brain: c.id === activeId && brain ? brain.snapshot() : c.brain,
-      updated: c.updated,
-    })),
-  };
-  try {
-    localStorage.setItem(STORE_KEY, JSON.stringify(pack));
-  } catch {
-    pack.chats.forEach((c) => {
-      c.messages = c.messages.map((m) => (m.image ? { ...m, image: "" } : m));
-    });
-    try {
-      localStorage.setItem(STORE_KEY, JSON.stringify(pack));
-    } catch {
-      /* ignore */
-    }
+function setBoot(text, percent) {
+  bootStatus.textContent = text;
+  if (typeof percent === "number") {
+    bootBar.style.width = `${Math.max(4, Math.min(100, percent))}%`;
   }
 }
 
-function activeChat() {
-  return chats.find((c) => c.id === activeId);
-}
-
-function scrollBottom() {
-  requestAnimationFrame(() => {
-    log.scrollTop = log.scrollHeight;
-  });
-}
-
-function fillBubble(bubble, m) {
-  bubble.textContent = "";
-  if (m.text) {
-    const p = document.createElement("div");
-    p.className = "bubble-text";
-    p.textContent = m.text;
-    bubble.appendChild(p);
-  }
-  if (m.image) {
-    const img = document.createElement("img");
-    img.className = "bubble-img";
-    img.src = m.image;
-    img.alt = m.alt || "image";
-    img.addEventListener("load", scrollBottom);
-    bubble.appendChild(img);
-  }
-  if (m.fileName && !m.image) {
-    const f = document.createElement("div");
-    f.className = "bubble-file";
-    f.textContent = `📄 ${m.fileName}`;
-    bubble.appendChild(f);
-  }
-}
-
-function renderMessages(messages) {
-  log.innerHTML = "";
-  for (const m of messages) {
-    const row = document.createElement("div");
-    row.className = `row ${m.role}`;
-    const bubble = document.createElement("div");
-    bubble.className = "bubble";
-    fillBubble(bubble, m);
-    row.appendChild(bubble);
-    log.appendChild(row);
-  }
-  scrollBottom();
-}
-
-function pushMessage(msg) {
-  const chat = activeChat();
-  chat.messages.push(msg);
-  chat.updated = Date.now();
-  if (
-    msg.role === "user" &&
-    chat.title.startsWith("Чат") &&
-    chat.messages.filter((m) => m.role === "user").length === 1
-  ) {
-    const t = msg.text || msg.fileName || "Чат";
-    chat.title = t.slice(0, 28) + (t.length > 28 ? "…" : "");
-  }
-  const row = document.createElement("div");
-  row.className = `row ${msg.role}`;
-  const bubble = document.createElement("div");
-  bubble.className = "bubble";
-  fillBubble(bubble, msg);
-  row.appendChild(bubble);
-  log.appendChild(row);
-  scrollBottom();
-  renderChatList();
-  saveStore();
-}
-
-function syncAgentBtn() {
-  if (!agentBtn) return;
-  agentBtn.setAttribute("aria-pressed", agentMode ? "true" : "false");
-  agentBtn.classList.toggle("on", agentMode);
-  agentBtn.textContent = agentMode ? "агент · on" : "агент";
-}
-
-function setTyping(on) {
-  const lang = brain?.getLang?.() || "ru";
-  if (on) {
-    statusEl.textContent = agentMode
-      ? lang === "en"
-        ? "critics running…"
-        : "критики работают…"
-      : lang === "en"
-        ? "Pupik is thinking…"
-        : "Pupik думает…";
+function showApp() {
+  boot.hidden = true;
+  register.hidden = true;
+  applyName();
+  if (!chats.length) createChat();
+  else openChat(chats[0].id);
+  if (modelReady) {
+    statusDot.classList.add("online");
+    statusText.textContent = "Qwen готов";
   } else {
-    statusEl.textContent = lang === "en" ? "online" : "на связи";
+    statusDot.classList.remove("online");
+    statusText.textContent = modelError || "Qwen не загрузился";
   }
-  statusEl.dataset.state = on ? "busy" : "idle";
+  input.focus();
 }
 
-function applyAgent(draft, userText) {
-  if (!agentMode) return draft;
-  const lang = brain.getLang() || "ru";
-  const { final, reports, avg } = runCriticAgents(draft, userText, lang);
-  const report = formatCriticReport(reports, avg, lang);
-  return `${final}\n\n${report}`;
+function applyName() {
+  const name = userName || "Pupik User";
+  profileName.textContent = name;
+  profileIcon.textContent = name.trim().charAt(0).toUpperCase() || "P";
 }
 
-function wantsOneShotCritics(text) {
-  return /запусти\s+критик|саб.?агент|режим\s+агент|critic\s+agent|run\s+critics|оценк\w*\s*\/\s*10|критик\w*\s+на/i.test(
-    String(text || "")
-  );
-}
-
-function renderChatList() {
-  const sorted = [...chats].sort((a, b) => b.updated - a.updated);
-  chatListEl.innerHTML = "";
-  for (const c of sorted) {
-    const row = document.createElement("div");
-    row.className = "chat-row";
-
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "chat-item" + (c.id === activeId ? " on" : "");
-    btn.textContent = c.title;
-    btn.title = c.title;
-    btn.addEventListener("click", () => switchChat(c.id));
-
-    const del = document.createElement("button");
-    del.type = "button";
-    del.className = "chat-del";
-    del.title = "Удалить чат";
-    del.setAttribute("aria-label", "Удалить чат");
-    del.textContent = "×";
-    del.addEventListener("click", (e) => {
-      e.stopPropagation();
-      deleteChat(c.id);
-    });
-
-    row.appendChild(btn);
-    row.appendChild(del);
-    chatListEl.appendChild(row);
-  }
-}
-
-function deleteChat(id) {
-  if (chats.length <= 1) {
-    resetActiveChat();
-    const only = activeChat();
-    only.title = "Чат";
-    renderChatList();
-    saveStore();
+function afterBoot() {
+  if (!userName) {
+    boot.hidden = true;
+    register.hidden = false;
+    nameInput.focus();
     return;
   }
-  const wasActive = id === activeId;
-  chats = chats.filter((c) => c.id !== id);
-  if (wasActive) {
-    activeId = chats.sort((a, b) => b.updated - a.updated)[0].id;
-    const chat = activeChat();
-    brain = createPupikBrain(chat.brain);
-    if (!chat.messages.length) {
-      const hi = brain.greeting();
-      chat.messages.push({ role: "ai", text: hi });
-    }
-    renderMessages(chat.messages);
-  }
-  renderChatList();
-  saveStore();
-  input.focus();
+  showApp();
 }
 
-function switchChat(id) {
-  if (id === activeId) return;
-  saveStore();
-  activeId = id;
-  const chat = activeChat();
-  brain = createPupikBrain(chat.brain);
-  renderMessages(chat.messages);
-  if (!chat.messages.length) {
-    const hi = brain.greeting();
-    chat.messages.push({ role: "ai", text: hi });
-    renderMessages(chat.messages);
+async function loadAI() {
+  setBoot("Загрузка Qwen…", 4);
+
+  const progress = (info) => {
+    if (info.status === "progress" && typeof info.progress === "number") {
+      setBoot(`Загрузка Qwen: ${Math.round(info.progress)}%`, info.progress);
+    } else if (info.status === "initiate" || info.status === "download") {
+      setBoot("Скачивание Qwen…", 8);
+    }
+  };
+
+  const options = { dtype: "q4", progress_callback: progress };
+
+  try {
+    if (navigator.gpu) {
+      try {
+        ai = await pipeline("text-generation", MODEL, { ...options, device: "webgpu" });
+      } catch (error) {
+        console.warn("WebGPU недоступен, пробуем WASM:", error);
+      }
+    }
+    if (!ai) {
+      ai = await pipeline("text-generation", MODEL, { ...options, device: "wasm" });
+    }
+    modelReady = true;
+    setBoot("Qwen готов", 100);
+  } catch (error) {
+    console.error(error);
+    modelError = "Не удалось загрузить Qwen";
+    setBoot(modelError, 100);
   }
-  renderChatList();
-  saveStore();
-  input.focus();
+  afterBoot();
+}
+
+function saveChats() {
+  localStorage.setItem("pupik_chats", JSON.stringify(chats));
 }
 
 function createChat() {
-  saveStore();
-  const id = uid();
-  const n = chats.length + 1;
-  chats.unshift({ id, title: `Чат ${n}`, messages: [], brain: null, updated: Date.now() });
-  activeId = id;
-  brain = createPupikBrain();
-  const hi = brain.greeting();
-  chats[0].messages.push({ role: "ai", text: hi });
-  renderMessages(chats[0].messages);
-  renderChatList();
-  saveStore();
+  currentChatId = Date.now().toString();
+  chatHistory = [];
+  chats.unshift({ id: currentChatId, title: "Новый чат", messages: [] });
+  saveChats();
+  renderHistory();
+  renderMessages();
+  document.querySelector(".top-title").textContent = "Новый диалог";
   input.focus();
 }
 
-function resetActiveChat() {
-  const chat = activeChat();
-  const msg = brain.resetConversation();
-  chat.messages = [{ role: "ai", text: msg }];
-  chat.brain = brain.snapshot();
-  chat.title = "Чат";
-  chat.updated = Date.now();
-  renderMessages(chat.messages);
-  renderChatList();
-  saveStore();
-  setTyping(false);
+function renderHistory() {
+  historyElement.innerHTML = "";
+  chats.forEach((chat) => {
+    const button = document.createElement("button");
+    button.className = "history-item";
+    button.textContent = chat.title || "Новый чат";
+    if (chat.id === currentChatId) button.classList.add("active");
+    button.addEventListener("click", () => openChat(chat.id));
+    historyElement.appendChild(button);
+  });
 }
 
-function normalizeReply(answer) {
-  if (answer && typeof answer === "object") return answer;
-  return { type: "text", text: String(answer || "") };
+function openChat(id) {
+  const chat = chats.find((item) => item.id === id);
+  if (!chat) return;
+  currentChatId = id;
+  chatHistory = [...chat.messages];
+  document.querySelector(".top-title").textContent = chat.title;
+  renderMessages();
+  renderHistory();
+  document.getElementById("sidebar").classList.remove("open");
 }
 
-function lastUserPhoto() {
-  const chat = activeChat();
-  for (let i = chat.messages.length - 1; i >= 0; i--) {
-    const m = chat.messages[i];
-    if (m.role === "user" && m.image) return m.image;
+function renderMessages() {
+  messagesElement.innerHTML = "";
+  welcome.style.display = chatHistory.length ? "none" : "block";
+  chatHistory.forEach((message) => addMessageToScreen(message.role, message.content));
+  messagesElement.scrollTop = messagesElement.scrollHeight;
+}
+
+function addMessageToScreen(role, content) {
+  const message = document.createElement("div");
+  message.className = "message " + (role === "user" ? "user-message" : "ai-message");
+
+  const avatar = document.createElement("div");
+  avatar.className = "message-avatar";
+  avatar.textContent = role === "user" ? (userName || "Я").charAt(0).toUpperCase() : "P";
+
+  const body = document.createElement("div");
+  body.className = "message-body";
+
+  const name = document.createElement("div");
+  name.className = "message-name";
+  name.textContent = role === "user" ? userName || "Ты" : "Pupik AI";
+
+  const text = document.createElement("div");
+  text.className = "message-text";
+  text.textContent = content;
+
+  body.appendChild(name);
+  body.appendChild(text);
+  message.appendChild(avatar);
+  message.appendChild(body);
+  messagesElement.appendChild(message);
+  messagesElement.scrollTop = messagesElement.scrollHeight;
+}
+
+function addTyping() {
+  const typing = document.createElement("div");
+  typing.className = "typing";
+  typing.id = "typing";
+  typing.innerHTML = "<span></span><span></span><span></span>";
+  messagesElement.appendChild(typing);
+  messagesElement.scrollTop = messagesElement.scrollHeight;
+}
+
+function removeTyping() {
+  document.getElementById("typing")?.remove();
+}
+
+function saveCurrentChat() {
+  const chat = chats.find((item) => item.id === currentChatId);
+  if (!chat) return;
+  chat.messages = [...chatHistory];
+  if (chatHistory.length && chat.title === "Новый чат") {
+    chat.title = chatHistory[0].content.slice(0, 32);
   }
+  saveChats();
+  renderHistory();
+  document.querySelector(".top-title").textContent = chat.title;
+}
+
+function extractAnswer(result) {
+  const generated = result?.[0]?.generated_text;
+  if (typeof generated === "string") return generated;
+  if (Array.isArray(generated)) return generated[generated.length - 1]?.content || "";
   return "";
 }
 
-async function speak(userText) {
-  pushMessage({ role: "user", text: userText });
-  setTyping(true);
-  const oneShot = wantsOneShotCritics(userText);
-  if (oneShot && !agentMode) {
-    agentMode = true;
-    localStorage.setItem("pupik-agent-mode", "1");
-    syncAgentBtn();
-  }
-  const delay = 380 + Math.min(1100, userText.length * 12) + (agentMode ? 420 : 0);
-  await new Promise((r) => setTimeout(r, delay));
-  const answer = normalizeReply(brain.reply(userText));
-  if (answer.type === "image") {
-    await new Promise((r) => setTimeout(r, 280));
-    const photo = answer.usePhoto ? lastUserPhoto() : "";
-    if (answer.usePhoto && !photo) {
-      pushMessage({
-        role: "ai",
-        text:
-          brain.getLang() === "en"
-            ? "Send your photo with 📎 first, then say “make me with Ronaldo”."
-            : "Сначала прикрепи своё фото через 📎, потом снова напиши «сделай меня с роналду».",
-      });
-      setTyping(false);
-      return;
-    }
-    const img = await generateImage(answer.prompt || userText, {
-      photoDataUrl: photo || undefined,
+async function sendMessage(text) {
+  text = text.trim();
+  if (!text || waiting) return;
+  if (!currentChatId) createChat();
+
+  waiting = true;
+  sendButton.disabled = true;
+  input.disabled = true;
+  welcome.style.display = "none";
+
+  chatHistory.push({ role: "user", content: text });
+  addMessageToScreen("user", text);
+  saveCurrentChat();
+  addTyping();
+
+  try {
+    if (!ai) throw new Error(modelError || "Модель не загружена");
+
+    statusText.textContent = "Qwen думает…";
+    const chat = [
+      { role: "system", content: systemPrompt() },
+      ...chatHistory.slice(-12).map((item) => ({
+        role: item.role === "assistant" ? "assistant" : "user",
+        content: item.content
+      }))
+    ];
+
+    const result = await ai(chat, {
+      max_new_tokens: 350,
+      temperature: 0.7,
+      do_sample: true,
+      top_p: 0.9,
+      repetition_penalty: 1.08
     });
-    let caption = answer.text;
-    if (agentMode) caption = applyAgent(caption, userText);
-    pushMessage({
-      role: "ai",
-      text: caption,
-      image: img.dataUrl,
-      alt: answer.prompt || "generated",
-    });
-  } else {
-    const text = applyAgent(answer.text, userText);
-    pushMessage({ role: "ai", text });
+
+    const answer = extractAnswer(result).trim() || "Не получилось сформировать ответ. Попробуй ещё раз.";
+    removeTyping();
+    chatHistory.push({ role: "assistant", content: answer });
+    addMessageToScreen("assistant", answer);
+    saveCurrentChat();
+    statusText.textContent = "Qwen готов";
+    statusDot.classList.add("online");
+  } catch (error) {
+    console.error(error);
+    removeTyping();
+    const errorMessage = modelReady
+      ? "Ошибка генерации. Попробуй ещё раз."
+      : "Qwen не загрузился. Проверь интернет и обнови страницу.";
+    chatHistory.push({ role: "assistant", content: errorMessage });
+    addMessageToScreen("assistant", errorMessage);
+    saveCurrentChat();
+    statusText.textContent = "Ошибка";
   }
-  if (oneShot) {
-    agentMode = false;
-    localStorage.setItem("pupik-agent-mode", "0");
-    syncAgentBtn();
-  }
-  setTyping(false);
-}
 
-function readFileAsDataURL(file) {
-  return new Promise((resolve, reject) => {
-    const r = new FileReader();
-    r.onload = () => resolve(r.result);
-    r.onerror = reject;
-    r.readAsDataURL(file);
-  });
-}
-
-function readFileAsText(file) {
-  return new Promise((resolve, reject) => {
-    const r = new FileReader();
-    r.onload = () => resolve(String(r.result || ""));
-    r.onerror = reject;
-    r.readAsText(file);
-  });
-}
-
-async function handleFiles(fileList) {
-  const files = [...fileList];
-  if (!files.length) return;
-  for (const file of files) {
-    const isImage = file.type.startsWith("image/");
-    const isText =
-      file.type.startsWith("text/") ||
-      /\.(txt|md|json|csv|js|ts|py|html|css|log|svg)$/i.test(file.name);
-
-    if (isImage) {
-      const dataUrl = await readFileAsDataURL(file);
-      pushMessage({
-        role: "user",
-        text: `Файл: ${file.name}`,
-        image: dataUrl,
-        fileName: file.name,
-        alt: file.name,
-      });
-      setTyping(true);
-      await new Promise((r) => setTimeout(r, 350));
-      const answer = normalizeReply(
-        brain.replyFile({ kind: "image", name: file.name, size: file.size, mime: file.type })
-      );
-      pushMessage({ role: "ai", text: answer.text });
-      setTyping(false);
-    } else if (isText) {
-      const text = await readFileAsText(file);
-      pushMessage({
-        role: "user",
-        text: `Файл: ${file.name}`,
-        fileName: file.name,
-      });
-      setTyping(true);
-      await new Promise((r) => setTimeout(r, 350));
-      const answer = normalizeReply(
-        brain.replyFile({
-          kind: "text",
-          name: file.name,
-          size: file.size,
-          mime: file.type,
-          preview: text.slice(0, 500),
-        })
-      );
-      pushMessage({ role: "ai", text: answer.text });
-      setTyping(false);
-    } else {
-      pushMessage({
-        role: "user",
-        text: `Файл: ${file.name}`,
-        fileName: file.name,
-      });
-      setTyping(true);
-      await new Promise((r) => setTimeout(r, 350));
-      const answer = normalizeReply(
-        brain.replyFile({ kind: "other", name: file.name, size: file.size, mime: file.type || "file" })
-      );
-      pushMessage({ role: "ai", text: answer.text });
-      setTyping(false);
-    }
-  }
-  fileInput.value = "";
-}
-
-form.addEventListener("submit", (e) => {
-  e.preventDefault();
-  const text = input.value.trim();
-  if (!text) return;
-  input.value = "";
-  input.style.height = "auto";
+  waiting = false;
+  sendButton.disabled = false;
+  input.disabled = false;
   input.focus();
-  speak(text);
+}
+
+registerForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const name = nameInput.value.trim();
+  if (!name) return;
+  userName = name;
+  localStorage.setItem(NAME_KEY, name);
+  showApp();
 });
 
-fileInput.addEventListener("change", () => handleFiles(fileInput.files));
-
-clearBtn.addEventListener("click", resetActiveChat);
-newChatBtn.addEventListener("click", createChat);
-if (agentBtn) {
-  agentBtn.addEventListener("click", () => {
-    agentMode = !agentMode;
-    localStorage.setItem("pupik-agent-mode", agentMode ? "1" : "0");
-    syncAgentBtn();
-    const lang = brain?.getLang?.() || "ru";
-    pushMessage({
-      role: "ai",
-      text: agentMode
-        ? lang === "en"
-          ? "Agent mode ON — each reply goes through 3 critic sub-agents (/10)."
-          : "Режим агента ВКЛ — каждый ответ проходит 3 саб-агента-критика (/10)."
-        : lang === "en"
-          ? "Agent mode OFF."
-          : "Режим агента ВЫКЛ.",
-    });
-  });
-}
-
-input.addEventListener("keydown", (e) => {
-  if (e.key === "Enter" && !e.shiftKey) {
-    e.preventDefault();
-    form.requestSubmit();
-  }
+form.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const text = input.value;
+  if (!text.trim()) return;
+  input.value = "";
+  input.style.height = "auto";
+  sendMessage(text);
 });
 
 input.addEventListener("input", () => {
   input.style.height = "auto";
-  input.style.height = `${Math.min(input.scrollHeight, 128)}px`;
+  input.style.height = Math.min(input.scrollHeight, 160) + "px";
 });
 
-// drag & drop на окно чата
-log.addEventListener("dragover", (e) => {
-  e.preventDefault();
-  log.classList.add("drop");
-});
-log.addEventListener("dragleave", () => log.classList.remove("drop"));
-log.addEventListener("drop", (e) => {
-  e.preventDefault();
-  log.classList.remove("drop");
-  if (e.dataTransfer?.files?.length) handleFiles(e.dataTransfer.files);
+input.addEventListener("keydown", (event) => {
+  if (event.key === "Enter" && !event.shiftKey) {
+    event.preventDefault();
+    form.requestSubmit();
+  }
 });
 
-loadStore();
-const chat = activeChat();
-brain = createPupikBrain(chat.brain);
-if (!chat.messages.length) {
-  const hi = brain.greeting();
-  chat.messages.push({ role: "ai", text: hi });
-}
-renderMessages(chat.messages);
-renderChatList();
-saveStore();
-syncAgentBtn();
-setTyping(false);
-input.focus();
+document.getElementById("newChat").addEventListener("click", createChat);
+document.getElementById("menuButton").addEventListener("click", () => {
+  document.getElementById("sidebar").classList.toggle("open");
+});
+
+document.querySelectorAll(".suggestion").forEach((button) => {
+  button.addEventListener("click", () => {
+    input.value = button.dataset.prompt;
+    form.requestSubmit();
+  });
+});
+
+loadAI();

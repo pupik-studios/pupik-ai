@@ -1,50 +1,124 @@
+
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
-  <meta http-equiv="Pragma" content="no-cache" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Pupik AI</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Manrope:wght@400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css?v=10" />
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div class="atmosphere" aria-hidden="true"></div>
-  <div class="layout">
-    <aside class="chats" aria-label="Чаты">
-      <button type="button" id="new-chat" class="new-chat">+ чат</button>
-      <div id="chat-list" class="chat-list"></div>
-    </aside>
 
-    <main class="shell">
-      <header class="brand-bar">
-        <div class="brand">
-          <p class="mark">Pupik AI</p>
-          <p class="tag">болтает · задачи · агент · критики</p>
-        </div>
-        <div class="meta">
-          <span id="status" data-state="idle">на связи</span>
-          <button type="button" id="agent-mode" title="Режим агента: саб-агенты критики" aria-pressed="false">агент</button>
-          <button type="button" id="clear-chat" title="Сброс беседы">сброс</button>
-        </div>
-      </header>
-
-      <section id="log" class="log" aria-live="polite"></section>
-
-      <form id="composer" class="composer">
-        <label class="attach" title="Прикрепить файл">
-          <span aria-hidden="true">📎</span>
-          <input type="file" id="file" multiple accept="image/*,.txt,.md,.json,.csv,.js,.py,.html,.css,.log" />
-        </label>
-        <label class="sr" for="input">Сообщение</label>
-        <textarea id="input" rows="1" placeholder="Текст, «нарисуй кота» или 📎 файл…" autocomplete="off"></textarea>
-        <button type="submit" aria-label="Отправить">→</button>
-      </form>
-    </main>
+<div id="boot" class="gate">
+  <div class="gate-card">
+    <div class="welcome-logo">P</div>
+    <h1>Pupik AI</h1>
+    <p id="bootStatus">Загрузка Qwen…</p>
+    <div class="bar" aria-hidden="true"><div id="bootBar"></div></div>
   </div>
-  <script type="module" src="app.js?v=10"></script>
+</div>
+
+<div id="register" class="gate" hidden>
+  <form id="registerForm" class="gate-card">
+    <div class="welcome-logo">P</div>
+    <h1>Как тебя зовут?</h1>
+    <p>Имя сохранится на этом устройстве.</p>
+    <input id="nameInput" name="name" required maxlength="32" placeholder="Твоё имя" autocomplete="name" />
+    <button type="submit">Войти</button>
+  </form>
+</div>
+
+<div class="app">
+
+  <aside class="sidebar" id="sidebar">
+    <div class="brand">
+      <div class="brand-icon">P</div>
+      <span>Pupik AI</span>
+    </div>
+
+    <button class="new-chat" id="newChat">
+      <span>＋</span> Новый чат
+    </button>
+
+    <div class="sidebar-label">ТВОИ ЧАТЫ</div>
+    <div class="history" id="history"></div>
+
+    <div class="sidebar-bottom">
+      <div class="profile-icon" id="profileIcon">P</div>
+      <div>
+        <strong id="profileName">Pupik User</strong>
+        <small>Личный помощник</small>
+      </div>
+    </div>
+  </aside>
+
+  <main class="main">
+
+    <header class="topbar">
+      <button class="menu-button" id="menuButton">☰</button>
+      <div class="top-title">Новый диалог</div>
+      <div class="model-status">
+        <span class="status-dot" id="statusDot"></span>
+        <span id="statusText">Проверка агента...</span>
+      </div>
+    </header>
+
+    <section class="chat-area">
+      <div class="welcome" id="welcome">
+        <div class="welcome-logo">P</div>
+        <h1>Привет! Я Pupik AI</h1>
+        <p>Твой AI-агент. Задай вопрос — и начнём.</p>
+
+        <div class="suggestions">
+          <button class="suggestion" data-prompt="Объясни мне сложную тему простыми словами">
+            <span>📚</span>
+            <strong>Объяснить тему</strong>
+            <small>Простые и понятные объяснения</small>
+          </button>
+
+          <button class="suggestion" data-prompt="Придумай интересную идею для проекта">
+            <span>💡</span>
+            <strong>Придумать идею</strong>
+            <small>Идеи для проектов и творчества</small>
+          </button>
+
+          <button class="suggestion" data-prompt="Помоги написать программу">
+            <span>💻</span>
+            <strong>Написать код</strong>
+            <small>Помощь с программированием</small>
+          </button>
+
+          <button class="suggestion" data-prompt="Расскажи что-нибудь интересное">
+            <span>🌍</span>
+            <strong>Узнать новое</strong>
+            <small>Интересные факты и открытия</small>
+          </button>
+        </div>
+      </div>
+
+      <div class="messages" id="messages"></div>
+    </section>
+
+    <footer class="composer-area">
+      <form class="composer" id="chatForm">
+        <textarea
+          id="messageInput"
+          placeholder="Напиши сообщение Pupik AI..."
+          rows="1"
+        ></textarea>
+        <button type="submit" id="sendButton" aria-label="Отправить">
+          ↑
+        </button>
+      </form>
+      <div class="disclaimer">
+        Pupik AI может ошибаться. Проверяй важную информацию.
+      </div>
+    </footer>
+
+  </main>
+</div>
+
+<script type="module" src="app.js"></script>
+
 </body>
 </html>
