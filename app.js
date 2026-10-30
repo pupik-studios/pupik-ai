@@ -1,5 +1,5 @@
 
-import { generateImage, wantsImage, extractImagePrompt, photoSubjects } from "./generate.js?v=28";
+import { generateImage, wantsImage, extractImagePrompt, photoSubjects } from "./generate.js?v=31";
 import { trySolve } from "./knowledge.js?v=19";
 
 const NAME_KEY = "pupik_user_name";
@@ -625,6 +625,9 @@ function localAnswer(question) {
   if (/кто создател|кто создал|кто автор|who created|who made/.test(q)) {
     return "Создатель: Владимиров Роберт Павлович.";
   }
+  if (/гном/.test(q)) {
+    return "Ты имел в виду Месси?";
+  }
   if (/^(привет|здравств|хай|hello|hi)(\s|$)/.test(q)) {
     return `${name ? `Привет, ${name}` : "Привет"}. Я твой помощник: могу написать программу, рассказать факт, поучить русскому и нарисовать.${noteText()}`;
   }
@@ -672,6 +675,9 @@ function drawingCaption(question) {
   if (/учу русск|изучаю русск/.test(q)) remember("учит русский");
   const labels = photoSubjects(question).map(item => item.label);
   const again = /друг|ещ[её]|another|different/.test(q);
+  if (labels.length > 1 && /сбив|толк|подкат/.test(q)) {
+    return `Вот фото: ${labels[0]} сбивает ${labels[1]}.`;
+  }
   if (labels.length > 1) return `${again ? "Вот другие фото" : "Вот фото"}: ${labels.join(" и ")}.`;
   if (labels.length === 1) return again ? `Вот другое фото: ${labels[0]}.` : `Вот фото: ${labels[0]}.`;
   return "Вот фото.";
@@ -725,7 +731,9 @@ async function sendMessage(text) {
     let image = "";
 
     const follow = imageFollowUp(question);
-    if (wantsImage(question) || follow) {
+    if (/гном/.test(question.toLowerCase().replace(/ё/g, "е"))) {
+      answer = "Ты имел в виду Месси?";
+    } else if (wantsImage(question) || follow) {
       const prompt = follow || extractImagePrompt(question);
       try {
         const drawn = await generateImage(prompt);

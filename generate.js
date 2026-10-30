@@ -1012,6 +1012,7 @@ const PHOTO_QUERIES = [
   [/рональдин|ronaldinho/, "Ronaldinho", "Роналдиньо", /ronaldinho/i],
   [/рона+л*д|криштиан|cr7/, "Cristiano Ronaldo", "Криштиану Роналду", /ronaldo/i],
   [/месси|messi/, "Lionel Messi", "Месси", /messi/i],
+  [/рамос|ramos/, "Sergio Ramos", "Серхио Рамос", /ramos/i],
   [/бургер|гамбургер|чизбургер|burger/, "hamburger", "бургер", /burger|hamburger/i],
   [/бобр|beaver/, "beaver", "бобр", /beaver|castor/i],
   [/кот(?!ор)|кошк|котен|kitten|\bcat\b/, "cat", "кот", /\bcat\b|kitten/i],
