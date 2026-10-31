@@ -1,6 +1,6 @@
 
 import { generateImage, wantsImage, extractImagePrompt, photoSubjects } from "./generate.js?v=34";
-import { trySolve } from "./knowledge.js?v=19";
+import { trySolve } from "./knowledge.js?v=20";
 
 const MODEL = "onnx-community/Qwen2.5-3B-Instruct";
 let ai = null;
@@ -387,6 +387,7 @@ function topicLinks(question, answer) {
   add(/нечетн|четн|двух?знач|трехзнач|однознач/, "https://ru.wikipedia.org/wiki/Чётные_и_нечётные_числа");
   add(/бленд|blender/, "https://www.blender.org/");
   add(/х[еэ]л+[оа]?уин|halloween/, "https://ru.wikipedia.org/wiki/Хэллоуин");
+  add(/fc\s*27|fc27|ea sports fc|еа fc/, "https://www.ea.com/games/ea-sports-fc");
   add(/питон|python/, "https://www.python.org/");
   add(/визуал|visual code|vscode/, "https://code.visualstudio.com/");
   return links;
@@ -398,7 +399,7 @@ function replyEmoji(question, hasImage) {
   if (/програм|код|питон|python|функци/.test(q)) return "💻";
   if (/объясн|дроб|понят/.test(q)) return "📚";
   if (/котик|кот(?!ор)|кошк/.test(q)) return "🐱";
-  if (/кто так|ривалд|ронал|месси|рамос|футбол/.test(q)) return "⚽";
+  if (/кто так|ривалд|ронал|месси|рамос|футбол|fc\s*27|fc27/.test(q)) return "⚽";
   if (/х[еэ]л+[оа]?уин|halloween/.test(q)) return "🎃";
   if (/привет|здравств|как дела/.test(q)) return "👋";
   return "✨";
@@ -1160,6 +1161,9 @@ function localAnswer(question) {
   const download = downloadAnswer(q);
   if (download) return download;
 
+  const game = gameAnswer(q) || gameFollowUp(q);
+  if (game) return game;
+
   const solved = trySolve(question);
   if (solved?.answer && !/нарисуй/.test(q)) return solved.answer;
 
@@ -1190,6 +1194,18 @@ const CS_LINK = "https://store.steampowered.com/app/730/CounterStrike_2/";
 
 function isCs(q) {
   return /(?:^|[^а-я])кс2?(?:[^а-я]|$)|cs2|counter-?strike|контр/.test(q);
+}
+
+function gameAnswer(q) {
+  if (!/fc\s*27|fc27/.test(q)) return "";
+  return named("FC 27 — это футбольная игра EA Sports FC 27. Серия сменила FIFA: с 2023 года EA выпускает её как EA Sports FC, уже без имени FIFA. Внутри матчи клубов и сборных, карьера и онлайн, на консолях и компьютере. https://www.ea.com/games/ea-sports-fc");
+}
+
+function gameFollowUp(q) {
+  if (!/^(разбирай|разбери|расскажи|подробнее)[.!?\s]*$/.test(q)) return "";
+  const earlier = recentUserTexts(6).find(item => /fc\s*27|fc27/.test(item));
+  if (!earlier) return "";
+  return gameAnswer(earlier);
 }
 
 function downloadAnswer(q) {

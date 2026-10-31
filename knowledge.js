@@ -487,7 +487,13 @@ function tryTime(text, lang) {
 /**
  * Универсальный разбор рабочей задачи.
  */
+function isDefinition(text) {
+  const n = normalize(text).replace(/[?!.]+$/g, "").trim();
+  return /^(что такое|что это за|what is|what s)(?:\s|$)/.test(n);
+}
+
 function tryHowtoTask(text, lang) {
+  if (isDefinition(text)) return null;
   if (!looksLikeTask(text)) return null;
 
   const goalBlob = extractHowto(text) || normalize(text);
