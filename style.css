@@ -11,8 +11,10 @@
 
 body {
   margin: 0;
-  min-height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
   background: #101114;
+  -webkit-text-size-adjust: 100%;
 }
 
 .gate {
@@ -123,7 +125,8 @@ button {
 
 .app {
   display: flex;
-  min-height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
 }
 
 .sidebar {
@@ -230,8 +233,10 @@ button {
 
 .history {
   display: flex;
+  flex: 1;
   flex-direction: column;
   gap: 7px;
+  min-height: 0;
   overflow-y: auto;
 }
 
@@ -294,7 +299,8 @@ button {
   display: flex;
   flex: 1;
   min-width: 0;
-  min-height: 100vh;
+  min-height: 0;
+  height: 100%;
   flex-direction: column;
 }
 
@@ -344,6 +350,7 @@ button {
   min-height: 0;
   margin: 0 auto;
   padding: 30px 25px 188px;
+  overflow-y: auto;
 }
 
 .welcome {
@@ -507,7 +514,7 @@ button {
   right: 0;
   bottom: 0;
   left: 250px;
-  padding: 12px 22px 15px;
+  padding: 12px 22px calc(15px + env(safe-area-inset-bottom));
   background: linear-gradient(transparent, #101114 25%);
 }
 
@@ -631,31 +638,60 @@ button {
   text-align: center;
 }
 
-@media (max-width: 650px) {
+@media (max-width: 940px) {
   .sidebar {
     position: fixed;
-    z-index: 10;
+    z-index: 20;
     top: 0;
     bottom: 0;
     left: 0;
     display: none;
+    width: min(320px, 86vw);
+    padding-top: calc(16px + env(safe-area-inset-top));
+    padding-bottom: calc(12px + env(safe-area-inset-bottom));
+    box-shadow: 12px 0 40px rgba(0, 0, 0, .45);
   }
 
   .sidebar.open {
     display: flex;
   }
 
-  .composer-area {
-    left: 0;
-    padding: 10px 12px 15px;
+  .topbar {
+    min-height: calc(52px + env(safe-area-inset-top));
+    padding: env(safe-area-inset-top) 14px 0;
   }
 
-  .topbar {
-    padding: 0 14px;
+  .menu-button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .composer-area {
+    left: 0;
+    padding: 8px 12px calc(8px + env(safe-area-inset-bottom));
+  }
+
+  .agent-toggle {
+    min-height: 36px;
+    padding: 8px 14px;
+    font-size: 14px;
+  }
+
+  .agent-hint {
+    display: none;
+  }
+
+  .composer textarea {
+    font-size: 16px;
+  }
+
+  #sendButton {
+    width: 44px;
+    height: 44px;
   }
 
   .chat-area {
-    padding: 20px 14px 200px;
+    padding: 16px 14px calc(168px + env(safe-area-inset-bottom));
   }
 
   .welcome h1 {
@@ -664,5 +700,29 @@ button {
 
   .suggestions {
     grid-template-columns: 1fr;
+  }
+
+  #bootGame {
+    max-height: 28dvh;
+  }
+}
+
+@media (max-height: 500px) {
+  .disclaimer {
+    display: none;
+  }
+
+  .chat-area {
+    padding-top: 10px;
+    padding-bottom: calc(124px + env(safe-area-inset-bottom));
+  }
+
+  .suggestions {
+    display: none;
+  }
+
+  #bootGame,
+  .boot-hint {
+    display: none;
   }
 }

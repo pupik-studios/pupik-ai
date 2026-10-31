@@ -1527,8 +1527,13 @@ newChatButton.addEventListener("click", createChat);
 document.getElementById("clearChat").addEventListener("click", clearCurrentChat);
 document.getElementById("deleteChats").addEventListener("click", deleteAllChats);
 
-menuButton.addEventListener("click", () => {
+menuButton.addEventListener("click", event => {
+  event.stopPropagation();
   sidebar.classList.toggle("open");
+});
+
+document.querySelector(".main")?.addEventListener("click", () => {
+  if (window.matchMedia("(max-width: 940px)").matches) sidebar.classList.remove("open");
 });
 
 document.querySelectorAll(".suggestion").forEach(button => {
