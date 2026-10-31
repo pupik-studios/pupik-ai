@@ -318,7 +318,6 @@ function addMessageToScreen(role, content, image) {
   messagesElement.scrollTop = messagesElement.scrollHeight;
 }
 
-const AGENT_KEY = "pupik_agent";
 const EMOJI_KEY = "pupik_emoji";
 const LINKS_KEY = "pupik_links";
 
@@ -329,7 +328,7 @@ function flagOn(key, fallback) {
 }
 
 function agentOn() {
-  return flagOn(AGENT_KEY, false);
+  return false;
 }
 
 function emojiOn() {
@@ -1237,9 +1236,6 @@ function computerReply(task) {
   if (task.type === "badname") {
     return named("имя файла должно быть без папок, с расширением txt, md, py, js, html, css или json.");
   }
-  if (!agentOn()) {
-    return named("включи кнопку «Агент». Файл на компьютере я открою только после твоего разрешения.");
-  }
   const what = task.type === "list"
     ? "показать имена файлов в выбранной папке"
     : task.type === "read"
@@ -1249,7 +1245,7 @@ function computerReply(task) {
 }
 
 function showPermission(task) {
-  if (!agentOn() || !task || task.type === "unsupported" || task.type === "badname") return;
+  if (!task || task.type === "unsupported" || task.type === "badname") return;
   const card = document.createElement("section");
   card.className = "agent-card";
   const heading = document.createElement("strong");
@@ -1481,7 +1477,7 @@ async function sendMessage(text) {
     });
 
     addMessageToScreen("assistant", answer, image);
-    if (job && agentOn()) showPermission(job);
+    if (job) showPermission(job);
     saveCurrentChat();
 
   } catch (error) {
@@ -1558,7 +1554,6 @@ if (chats.length > 0) {
 setStatus(false);
 applyName();
 
-const agentMode = document.getElementById("agentMode");
 const emojiMode = document.getElementById("emojiMode");
 const linksMode = document.getElementById("linksMode");
 const agentHint = document.getElementById("agentHint");
@@ -1569,19 +1564,13 @@ function syncTool(button, on) {
 }
 
 function syncAgent() {
-  syncTool(agentMode, agentOn());
   syncTool(emojiMode, emojiOn());
   syncTool(linksMode, linksOn());
   const notes = [];
-  if (agentOn()) notes.push("агент");
   if (emojiOn()) notes.push("смайлики");
   if (linksOn()) notes.push("ссылки");
   if (agentHint) agentHint.textContent = notes.length ? notes.join(" · ") : "Обычный диалог";
-  if (input) {
-    input.placeholder = agentOn()
-      ? "Напиши задачу агенту..."
-      : "Напиши сообщение Pupik AI...";
-  }
+  if (input) input.placeholder = "Напиши сообщение Pupik AI...";
 }
 
 function toggleFlag(key, read) {
@@ -1589,7 +1578,6 @@ function toggleFlag(key, read) {
   syncAgent();
 }
 
-agentMode?.addEventListener("click", () => toggleFlag(AGENT_KEY, agentOn));
 emojiMode?.addEventListener("click", () => toggleFlag(EMOJI_KEY, emojiOn));
 linksMode?.addEventListener("click", () => toggleFlag(LINKS_KEY, linksOn));
 
