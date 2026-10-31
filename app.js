@@ -289,6 +289,7 @@ function topicLinks(question, answer) {
   add(/рамос|ramos/, "https://ru.wikipedia.org/wiki/Рамос,_Серхио");
   add(/дроб/, "https://ru.wikipedia.org/wiki/Дробь_(математика)");
   add(/нечетн|четн|двух?знач|трехзнач|однознач/, "https://ru.wikipedia.org/wiki/Чётные_и_нечётные_числа");
+  add(/бленд|blender/, "https://www.blender.org/");
   add(/питон|python/, "https://www.python.org/");
   add(/визуал|visual code|vscode/, "https://code.visualstudio.com/");
   return links;
@@ -886,6 +887,9 @@ function localAnswer(question) {
   if (/что умеешь|личный помощник|кто ты/.test(q)) {
     return `Я Pupik AI${name ? ", помощник " + name : ""}. Пишу код, разбираю задачу по шагам, учу русский и показываю фото.${noteText()}`;
   }
+  const closing = windowAnswer(q);
+  if (closing) return closing;
+
   if (/сколько/.test(q) && /кот/.test(q) && /пл[ао]нет|мир|земл/.test(q)) {
     return `${name ? name + ", т" : "Т"}очного числа нет: кошек никто не переписывает всех сразу. Домашних оценивают примерно в 600 миллионов, а вместе с бездомными — около миллиарда.`;
   }
@@ -1149,6 +1153,19 @@ function showPermission(task) {
   messagesElement.scrollTop = messagesElement.scrollHeight;
 }
 
+function windowAnswer(q) {
+  if (!/закр|quit/.test(q) || !/бленд|blender|окно|программ|приложен/.test(q)) return "";
+  const blender = /бленд|blender/.test(q);
+  const name = blender ? "Blender" : "программы";
+  const menu = blender ? "В Blender открой File → Quit, либо нажми Cmd+Q." : "В меню программы выбери Quit, либо нажми Cmd+Q.";
+  const site = blender ? "\n\nСайт Blender: https://www.blender.org/" : "";
+  return named(`окно ${name} из чата не закрывается, иначе пропадёт несохранённый файл. На Mac так:
+
+1. Красный кружок слева сверху в окне ${name}.
+2. ${menu}
+3. Если спросит про сохранение: Save оставляет файл, Don't Save закрывает без него.${site}`);
+}
+
 function fallbackAnswer() {
   const name = userName || "";
   return `${name ? name + ", я" : "Я"} на связи. Могу написать программу, разобрать задачу, рассказать факт или нарисовать.`;
@@ -1372,7 +1389,7 @@ function syncAgent() {
   syncTool(emojiMode, emojiOn());
   syncTool(linksMode, linksOn());
   const notes = [];
-  if (agentOn()) notes.push("агент по шагам");
+  if (agentOn()) notes.push("агент");
   if (emojiOn()) notes.push("смайлики");
   if (linksOn()) notes.push("ссылки");
   if (agentHint) agentHint.textContent = notes.length ? notes.join(" · ") : "Обычный диалог";
