@@ -853,7 +853,53 @@ function countAnswer(q) {
 Таких чисел ${total}.${skipLine}`);
 }
 
+function countRules(q) {
+  const spans = [
+    [/четыр[её]хзнач/, 1000, 9999, "четырёхзначное"],
+    [/тр[её]хзнач/, 100, 999, "трёхзначное"],
+    [/двух?знач/, 10, 99, "двухзначное"],
+    [/однознач/, 0, 9, "однозначное"]
+  ];
+  const span = spans.find(([pattern]) => pattern.test(q));
+  const odd = /неч[её]т/.test(q);
+  return {
+    from: span ? span[1] : null,
+    to: span ? span[2] : null,
+    label: span ? span[3] : "",
+    odd,
+    even: !odd && /ч[её]тн/.test(q),
+    distinct: /неповторя|разн[а-я]* цифр|без повтор/.test(q)
+  };
+}
+
+function whyCount(q) {
+  if (!/почему|зачем|отчего/.test(q)) return "";
+  const raw = (q.match(/\d+/) || [])[0];
+  if (!raw) return "";
+  const sample = Number(raw);
+  const earlier = recentUserTexts(6).find(item => /сколько|существу|двух?знач|трехзнач|однознач|неч[её]т|четн/.test(item)) || "";
+  if (!earlier) return "";
+  const rules = countRules(earlier);
+  const reasons = [];
+  if (rules.from != null && (sample < rules.from || sample > rules.to)) {
+    reasons.push(`оно не ${rules.label}: такие числа от ${rules.from} до ${rules.to}`);
+  }
+  if (rules.odd && sample % 2 === 0) {
+    reasons.push(`оно чётное, последняя цифра ${raw.slice(-1)}, а нужны нечётные`);
+  }
+  if (rules.even && sample % 2 !== 0) {
+    reasons.push("оно нечётное, а нужны чётные");
+  }
+  if (rules.distinct && digitsRepeat(sample)) {
+    reasons.push("цифры в нём повторяются");
+  }
+  if (!reasons.length) return named(`${sample} как раз считается: оно подходит под условие.`);
+  return named(`${sample} не считается: ${reasons.join(", и ")}.`);
+}
+
 function countFollowUp(q) {
+  const why = whyCount(q);
+  if (why) return why;
   if (!/не должн|не счита|убери|подобн|таму|тому/.test(q)) return "";
   const earlier = recentUserTexts(6).find(item => /сколько|существу|двух?знач|трехзнач|однознач/.test(item));
   if (!earlier) return "";
