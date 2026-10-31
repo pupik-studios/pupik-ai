@@ -314,20 +314,22 @@ function taskKind(question) {
   return "ответ";
 }
 
+function agentLink(question, result) {
+  const found = String(result).match(/https?:\/\/[^\s<>"']+/);
+  if (found) return found[0].replace(/[),.;]+$/g, "");
+  const extra = topicLinks(question, result);
+  if (extra.length) return extra[0];
+  const q = question.toLowerCase().replace(/ё/g, "е");
+  if (/визуал|studio|vscode|игр|код|програм|напиш/.test(q)) return "https://code.visualstudio.com/";
+  return "";
+}
+
 function asAgent(question, result) {
   if (!agentOn() || !result) return result;
-  const steps = {
-    фото: ["Читаю, что нарисовать", "Ищу одно фото по словам в названии", "Показываю снимок"],
-    код: ["Читаю, какая нужна программа", "Пишу код", "Отдаю текст и как его запустить"],
-    объяснение: ["Беру тему из сообщения", "Объясняю на коротком примере", "Оставляю шаги"],
-    справка: ["Смотрю, о ком или о чём речь", "Собираю короткие факты", "Отвечаю"],
-    уточнение: ["Смотрю слово", "Сверяю, не имя ли это", "Переспрашиваю"],
-    компьютер: ["Проверяю, что это действие с файлом", "Жду разрешение и выбранную папку", "Делаю только это действие"],
-    ответ: ["Читаю сообщение", "Сверяю с двумя предыдущими репликами", "Показываю результат"]
-  }[taskKind(question)];
-  const earlier = recentUserTexts(2).map(item => `«${item.slice(0, 70)}»`);
-  const memory = earlier.length ? `Помню: ${earlier.join("; ")}.` : "Раньше в этом чате сообщений нет.";
-  return `Агент\n1. ${steps[0]}\n2. ${steps[1]}\n3. ${steps[2]}\n${memory}\n\nРезультат:\n${result}`;
+  const files = /index\.html/.test(result) && /game\.js/.test(result);
+  const link = agentLink(question, result);
+  const tail = link ? `\n\nГотово. Вот ссылка: ${link}` : "\n\nГотово.";
+  return `${files ? "Ок, вот код." : "Ок."}\n\n${result}${tail}`;
 }
 
 function decorateReply(question, answer, hasImage) {
@@ -599,6 +601,63 @@ function previousUserText() {
   return (users.length > 1 ? users[users.length - 2].content : "").toLowerCase().replace(/ё/g, "е");
 }
 
+function wantsStudioGame(q) {
+  return /игр|наивн/.test(q) && /напиш|сделай|создай|визуал|visual|studio|код/.test(q);
+}
+
+function studioFiles() {
+  return `index.html
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <title>Наивная игра</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main>
+    <h1>Угадай число</h1>
+    <p id="log">Я загадал число от 1 до 20. Есть 5 попыток.</p>
+    <input id="guess" type="number" min="1" max="20">
+    <button id="ok" type="button">Проверить</button>
+  </main>
+  <script src="game.js"></script>
+</body>
+</html>
+
+game.js
+const secret = Math.floor(Math.random() * 20) + 1;
+let left = 5;
+
+document.getElementById("ok").onclick = () => {
+  const guess = Number(document.getElementById("guess").value);
+  const text = document.getElementById("log");
+  left -= 1;
+  if (guess === secret) text.textContent = "Угадал!";
+  else if (!left) text.textContent = "Число было " + secret;
+  else text.textContent = (guess < secret ? "Больше. " : "Меньше. ") + "Осталось " + left;
+};
+
+style.css
+body {
+  margin: 0;
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  background: #16181d;
+  color: #f4f1ea;
+  font-family: sans-serif;
+}
+
+main { text-align: center; }
+
+input, button {
+  font: inherit;
+  margin: 6px;
+  padding: 8px 12px;
+}`;
+}
+
 function visualCodeAnswer(q) {
   const visual = /визуал|visual code|scratch|блочн/.test(q);
   const rejectsPython = /не на питон|не питон|без питона|не python/.test(q);
@@ -788,6 +847,8 @@ function localAnswer(question) {
   if (/сколько/.test(q) && /кот/.test(q) && /пл[ао]нет|мир|земл/.test(q)) {
     return `${name ? name + ", т" : "Т"}очного числа нет: кошек никто не переписывает всех сразу. Домашних оценивают примерно в 600 миллионов, а вместе с бездомными — около миллиарда.`;
   }
+
+  if (agentOn() && wantsStudioGame(q)) return studioFiles();
 
   const visual = visualCodeAnswer(q);
   if (visual) return visual;
