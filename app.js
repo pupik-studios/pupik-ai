@@ -288,6 +288,7 @@ function topicLinks(question, answer) {
   add(/месси|messi/, "https://ru.wikipedia.org/wiki/Лионель_Месси");
   add(/рамос|ramos/, "https://ru.wikipedia.org/wiki/Рамос,_Серхио");
   add(/дроб/, "https://ru.wikipedia.org/wiki/Дробь_(математика)");
+  add(/нечетн|четн|двух?знач|трехзнач|однознач/, "https://ru.wikipedia.org/wiki/Чётные_и_нечётные_числа");
   add(/питон|python/, "https://www.python.org/");
   add(/визуал|visual code|vscode/, "https://code.visualstudio.com/");
   return links;
@@ -776,8 +777,8 @@ function explainAnswer(q) {
 Напиши две свои дроби — посчитаю так же по шагам.`);
   }
   if (!/объясн|как понять/.test(q)) return "";
-  if (!/сложн|функци|python|питон/.test(q)) return "";
-  return named(`возьмём функцию. Это кнопка с именем: даёшь ей данные, она делает одно дело и отдаёт результат.
+  if (/функци|python|питон/.test(q)) {
+    return named(`возьмём функцию. Это кнопка с именем: даёшь ей данные, она делает одно дело и отдаёт результат.
 
 \`\`\`python
 def удвоить(число):
@@ -787,6 +788,47 @@ print(удвоить(7))  # 14
 \`\`\`
 
 Напиши, какую тему разобрать дальше: Python, русский или футбол.`);
+  }
+  if (/сложн/.test(q)) {
+    return named("напиши тему своими словами. Например: деление дробей или сколько нечётных двухзначных чисел.");
+  }
+  return "";
+}
+
+function countAnswer(q) {
+  if (!/сколько|разбер|посчитай|существу/.test(q)) return "";
+  const spans = [
+    [/четыр[её]хзнач/, 1000, 9999, "четырёхзначные"],
+    [/тр[её]хзнач/, 100, 999, "трёхзначные"],
+    [/двух?знач/, 10, 99, "двухзначные"],
+    [/однознач/, 0, 9, "однозначные"]
+  ];
+  const span = spans.find(([pattern]) => pattern.test(q));
+  if (!span || !/чисел|числа|цифр|знач/.test(q)) return "";
+  const [, from, to, label] = span;
+  const odd = /неч[её]т/.test(q);
+  const even = !odd && /ч[её]тн/.test(q);
+  const multiple = Number((q.match(/кратн[а-яё]*\s+(\d+)|на\s+(\d+)/) || []).slice(1).find(Boolean)) || 0;
+  let total = 0;
+  const examples = [];
+  for (let n = from; n <= to; n += 1) {
+    if (odd && n % 2 === 0) continue;
+    if (even && n % 2 !== 0) continue;
+    if (multiple && n % multiple !== 0) continue;
+    total += 1;
+    if (examples.length < 5) examples.push(n);
+  }
+  const kind = `${odd ? "нечётные " : even ? "чётные " : ""}${multiple ? `кратные ${multiple} ` : ""}`;
+  const last = odd
+    ? "Последняя цифра 1, 3, 5, 7 или 9."
+    : even
+      ? "Последняя цифра 0, 2, 4, 6 или 8."
+      : "Считаю все числа в этом промежутке.";
+  const among = kind ? `Среди них ${kind.trim()}. ` : "";
+  return named(`${label} числа идут от ${from} до ${to}. ${among}${last}
+
+Примеры: ${examples.join(", ")}.
+Таких чисел ${total}.`);
 }
 
 function ideaAnswer(q) {
@@ -855,6 +897,9 @@ function localAnswer(question) {
 
   const code = codeAnswer(q);
   if (code) return code;
+
+  const counted = countAnswer(q);
+  if (counted) return counted;
 
   const explained = explainAnswer(q);
   if (explained) return explained;
