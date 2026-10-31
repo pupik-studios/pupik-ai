@@ -329,9 +329,13 @@ function agentLink(question, result) {
 function asAgent(question, result) {
   if (!agentOn() || !result) return result;
   const files = /index\.html/.test(result) && /game\.js/.test(result);
+  const handsOn = /красный кружок|сам нажми|из браузера/.test(result);
   const link = agentLink(question, result);
-  const tail = link ? `\n\nГотово. Вот ссылка: ${link}` : "\n\nГотово.";
-  return `${files ? "Ок, вот код." : "Ок."}\n\n${result}${tail}`;
+  const tail = handsOn
+    ? (link ? `\n\nВот ссылка: ${link}` : "")
+    : (link ? `\n\nГотово. Вот ссылка: ${link}` : "\n\nГотово.");
+  const head = files ? "Ок, вот код." : handsOn ? "Ок, вот как." : "Ок.";
+  return `${head}\n\n${result}${tail}`;
 }
 
 function decorateReply(question, answer, hasImage) {
@@ -1157,13 +1161,12 @@ function windowAnswer(q) {
   if (!/закр|quit/.test(q) || !/бленд|blender|окно|программ|приложен/.test(q)) return "";
   const blender = /бленд|blender/.test(q);
   const name = blender ? "Blender" : "программы";
-  const menu = blender ? "В Blender открой File → Quit, либо нажми Cmd+Q." : "В меню программы выбери Quit, либо нажми Cmd+Q.";
-  const site = blender ? "\n\nСайт Blender: https://www.blender.org/" : "";
-  return named(`окно ${name} из чата не закрывается, иначе пропадёт несохранённый файл. На Mac так:
+  const menu = blender ? "В Blender: File → Quit, либо Cmd+Q." : "В меню программы: Quit, либо Cmd+Q.";
+  return named(`из браузера красный кружок не нажимается. На Mac закрой ${name} так:
 
 1. Красный кружок слева сверху в окне ${name}.
 2. ${menu}
-3. Если спросит про сохранение: Save оставляет файл, Don't Save закрывает без него.${site}`);
+3. Save — оставить файл. Don't Save — закрыть без сохранения.`);
 }
 
 function fallbackAnswer() {
