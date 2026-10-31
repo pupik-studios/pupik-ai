@@ -83,7 +83,9 @@ async function qwenAnswer() {
       top_p: 0.9,
       repetition_penalty: 1.08
     }), 8000);
-    return cleanModelText(extractAnswer(result));
+    const clean = cleanModelText(extractAnswer(result));
+    if (/не могу решить|теряюсь|превращен|тупост|какое-то странное|недоразумени/.test(clean.toLowerCase())) return "";
+    return clean;
   } catch (error) {
     console.warn("Qwen не успел:", error);
     return "";
@@ -388,6 +390,7 @@ function replyEmoji(question, hasImage) {
   if (hasImage || /фото|нарисуй/.test(q)) return "📸";
   if (/програм|код|питон|python|функци/.test(q)) return "💻";
   if (/объясн|дроб|понят/.test(q)) return "📚";
+  if (/котик|кот(?!ор)|кошк/.test(q)) return "🐱";
   if (/кто так|ривалд|ронал|месси|рамос|футбол/.test(q)) return "⚽";
   if (/х[еэ]л+[оа]?уин|halloween/.test(q)) return "🎃";
   if (/привет|здравств|как дела/.test(q)) return "👋";
@@ -999,6 +1002,60 @@ function countFollowUp(q) {
   return countAnswer(next);
 }
 
+const PUZZLE_KEY = "pupik_puzzle";
+
+function puzzleBank() {
+  return [
+    {
+      kind: "number",
+      ask: "В корзине было 12 яблок. Отдали половину, потом положили ещё 5. Сколько яблок стало?",
+      answer: "11",
+      alts: ["11"]
+    },
+    {
+      kind: "number",
+      ask: "Число увеличили на 15 и получили 42. Какое число было сначала?",
+      answer: "27",
+      alts: ["27"]
+    },
+    {
+      kind: "number",
+      ask: "Сколько существует чётных трёхзначных чисел, у которых все цифры разные?",
+      answer: "328",
+      alts: ["328"]
+    },
+    {
+      kind: "word",
+      ask: "Аня, Боря и Вера взяли три разных предмета: мяч, книгу и кота. Аня не брала книгу. Боря не брал ни мяч, ни книгу. Кто взял кота?",
+      answer: "Боря",
+      alts: ["боря", "борис"]
+    }
+  ];
+}
+
+function puzzleTurn(q) {
+  const saved = sessionStorage.getItem(PUZZLE_KEY);
+  if (saved && !/придумай|задач|кто так|ссылк|нарисуй/.test(q)) {
+    let puzzle;
+    try { puzzle = JSON.parse(saved); } catch { puzzle = null; }
+    if (puzzle) {
+      const guess = q.trim().replace(/[.!?]+$/g, "");
+      const norm = value => value.toLowerCase().replace(/ё/g, "е").replace(/\s+/g, "");
+      const hit = (puzzle.alts || []).some(item => norm(guess) === norm(item));
+      const numeric = puzzle.kind === "number" && /^\d+$/.test(guess.replace(/\s+/g, ""));
+      if (hit || numeric) {
+        sessionStorage.removeItem(PUZZLE_KEY);
+        return named(hit ? `верно. Ответ: ${puzzle.answer}.` : `пока не то. Ответ: ${puzzle.answer}.`);
+      }
+    }
+  }
+  if (!/придумай|сочини|дай|сложн/.test(q) || !/задач|головолом|пример/.test(q)) return "";
+  const bank = puzzleBank();
+  const puzzle = bank[Math.floor(Math.random() * bank.length)];
+  sessionStorage.setItem(PUZZLE_KEY, JSON.stringify(puzzle));
+  return named(`держи задачу.\n\n${puzzle.ask}\n\nНапиши ответ одним сообщением — проверю.`);
+}
+
 function ideaAnswer(q) {
   if (!/иде|проект/.test(q)) return "";
   return named(`три идеи на один вечер:
@@ -1048,6 +1105,9 @@ function localAnswer(question) {
   if (/х[еэ]л+[оа]?уин|halloween/.test(q)) {
     return named("сегодня Хэллоуин, 31 октября. Вечером ставят фонари из тыквы, надевают костюмы и ходят за сладостями. Праздник пришёл из Ирландии, а название — от кануна Дня всех святых.");
   }
+  const puzzle = puzzleTurn(q);
+  if (puzzle) return puzzle;
+
   if (/как дела|как ты/.test(q)) {
     return `${name ? name + ", у" : "У"} меня всё в порядке. Чем помочь?${noteText()}`;
   }
@@ -1109,7 +1169,14 @@ function whoAnswer(q) {
     [/рамос|ramos/, "Серхио Рамос — испанский защитник. Родился 30 марта 1986 года. Капитан «Реала» и сборной Испании, чемпион мира 2010 года."]
   ];
   const hit = people.find(([pattern]) => pattern.test(q));
-  return hit ? named(hit[1]) : "";
+  if (hit) return named(hit[1]);
+  if (/котик|кот(?!ор)|кошк/.test(q)) {
+    return named("котик — это кот, домашнее животное. Не человек.");
+  }
+  const name = q.replace(/^(?:а\s+)?кто\s+так[а-я]*\s*/, "").replace(/[?!.]+$/g, "").trim();
+  return named(name
+    ? `не знаю, кто такой «${name}». Если это человек, напиши фамилию. Если нужен сайт — напиши «дай ссылку на …».`
+    : "уточни, о ком речь.");
 }
 
 const CS_LINK = "https://store.steampowered.com/app/730/CounterStrike_2/";
@@ -1193,10 +1260,13 @@ async function officialSite(name) {
 
 async function answerOfficialLink(question) {
   const q = question.toLowerCase().replace(/ё/g, "е");
-  if (!/ссылк|официальн[а-я]*\s+сайт/.test(q)) return "";
+  const previous = recentUserTexts(1)[0] || "";
+  const followLink = /ссылк|официальн/.test(previous) && /^(?:на\s+)?[\p{L}\d][\p{L}\d .+-]{0,40}$/u.test(q.trim());
+  if (!/ссылк|официальн[а-я]*\s+сайт/.test(q) && !followLink) return "";
   const target = linkTarget(q);
-  const source = target || recentUserTexts(4).map(linkTarget).find(Boolean) || "";
+  const source = target || (followLink ? q.replace(/^на\s+/, "").trim() : "") || recentUserTexts(4).map(linkTarget).find(Boolean) || "";
   if (!source) return named("напиши, на что нужна ссылка.");
+  if (/озон|ozon/.test(source) || /озон|ozon/.test(q)) return named("вот ссылка на Ozon: https://www.ozon.ru");
   if (isCs(source) || isCs(q)) return downloadAnswer(`${source} ${q}`);
   try {
     const site = await officialSite(source);
