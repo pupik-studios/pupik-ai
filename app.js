@@ -46,6 +46,16 @@ function withTimeout(promise, ms) {
   ]);
 }
 
+function cleanModelText(text) {
+  const clean = String(text || "")
+    .replace(/\u0000/g, "")
+    .replace(/^[ \t]+/gm, "")
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+  return clean.length < 8 ? "" : clean;
+}
+
 function extractAnswer(result) {
   const generated = result?.[0]?.generated_text;
   if (typeof generated === "string") return generated;
@@ -73,7 +83,7 @@ async function qwenAnswer() {
       top_p: 0.9,
       repetition_penalty: 1.08
     }), 8000);
-    return extractAnswer(result).trim();
+    return cleanModelText(extractAnswer(result));
   } catch (error) {
     console.warn("Qwen не успел:", error);
     return "";
@@ -1046,6 +1056,9 @@ function localAnswer(question) {
   const closing = windowAnswer(q);
   if (closing) return closing;
 
+  const task = bareTask(q);
+  if (task) return task;
+
   if (/сколько/.test(q) && /кот/.test(q) && /пл[ао]нет|мир|земл/.test(q)) {
     return `${name ? name + ", т" : "Т"}очного числа нет: кошек никто не переписывает всех сразу. Домашних оценивают примерно в 600 миллионов, а вместе с бездомными — около миллиарда.`;
   }
@@ -1307,6 +1320,21 @@ function showPermission(task) {
   card.append(heading, details, actions);
   messagesElement.appendChild(card);
   messagesElement.scrollTop = messagesElement.scrollHeight;
+}
+
+function bareTask(q) {
+  if (!/разбер|реши/.test(q) || !/задач|номер|пример/.test(q)) return "";
+  const rest = q
+    .replace(/разбер[а-я]*|задач[а-я]*|номер[а-я]*|пример[а-я]*|реши|помоги|пожалуйста|мне/g, " ")
+    .replace(/\d+/g, " ")
+    .replace(/[^а-яa-z]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (rest.length > 2) return "";
+  const num = (q.match(/\d+/) || [])[0];
+  return named(num
+    ? `в сообщении только номер ${num}, условия нет. Пришли текст задачи целиком.`
+    : "пришли текст задачи целиком: в сообщении нет условия.");
 }
 
 function windowAnswer(q) {
