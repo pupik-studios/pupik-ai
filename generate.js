@@ -1031,6 +1031,7 @@ const PHOTO_QUERIES = [
   [/дерев|forest|\btree\b/, "tree", "дерево", /\btree\b|forest/i],
   [/(?:^|[^а-я])дом(?:[^а-я]|$)|домик|\bhouse\b/, "house", "дом", /\bhouse\b/i],
   [/машин|автомобил|\bcar\b/, "car", "машина", /\bcar\b|automobile/i],
+  [/fc\s*27|fc27|ea sports fc|eafc/, "EAFC", "EA Sports FC", /eafc|ea sports fc|fifa/i],
   [/футбол|soccer|football/, "football", "футбол", /football|soccer/i],
   [/космос|луна|планет|\bspace\b/, "space", "космос", /space|moon|planet|galaxy/i],
   [/море|океан|пляж|\bsea\b|ocean|beach/, "sea", "море", /\bsea\b|ocean|beach/i],

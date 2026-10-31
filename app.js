@@ -1,5 +1,5 @@
 
-import { generateImage, wantsImage, extractImagePrompt, photoSubjects } from "./generate.js?v=34";
+import { generateImage, wantsImage, extractImagePrompt, photoSubjects } from "./generate.js?v=35";
 import { trySolve } from "./knowledge.js?v=20";
 
 const MODEL = "onnx-community/Qwen2.5-3B-Instruct";
@@ -1208,6 +1208,29 @@ function gameFollowUp(q) {
   return gameAnswer(earlier);
 }
 
+function explanationPhotoQuery(question) {
+  const q = question.toLowerCase().replace(/ё/g, "е");
+  const earlier = /^(разбирай|разбери|подробнее|расскажи)[.!?\s]*$/.test(q)
+    ? (recentUserTexts(6).find(item => /fc\s*27|fc27|кто так|что такое|расскажи/.test(item)) || "")
+    : "";
+  const blob = `${earlier} ${q}`.trim();
+  if (!/что такое|что это|кто так|расскажи|объясн|fc\s*27|fc27/.test(blob)) return "";
+  if (/дроб|питон|python|функци|двух?знач|нечет|четн|бленд|скачать|ссылк/.test(blob)) return "";
+  if (/fc\s*27|fc27/.test(blob)) return "EAFC";
+  const subject = photoSubjects(blob).find(item => item.known);
+  return subject ? subject.query : "";
+}
+
+function storyBesidePhoto(question) {
+  const q = question.toLowerCase().replace(/ё/g, "е");
+  if (!/расскажи|объясни|что такое|кто так/.test(q)) return "";
+  const game = gameAnswer(q);
+  if (game) return game;
+  const who = whoAnswer(/кто так|who is/.test(q) ? q : `кто такой ${q}`);
+  if (who && !/не знаю, кто такой|уточни, о ком/.test(who)) return who;
+  return "";
+}
+
 function downloadAnswer(q) {
   if (!isCs(q)) return "";
   const mac = /мак\s*бук|macbook|на мак|для мак/.test(q);
@@ -1552,6 +1575,8 @@ async function sendMessage(text) {
         } else {
           answer = caption;
         }
+        const story = storyBesidePhoto(question);
+        if (story) answer = `${answer}\n\n${story}`;
       } catch (error) {
         console.warn("Фото не найдено:", error);
         answer = error?.message && error.message !== "no photo"
@@ -1560,6 +1585,14 @@ async function sendMessage(text) {
       }
     } else {
       answer = localAnswer(question);
+      const photoQuery = answer && explanationPhotoQuery(question);
+      if (photoQuery) {
+        try {
+          image = await withTimeout(generateImage(photoQuery).then(drawn => drawn.dataUrl), 12000);
+        } catch (error) {
+          console.warn("Фото к объяснению не нашлось:", error);
+        }
+      }
     }
 
     if (!answer && !image) answer = await qwenAnswer();
