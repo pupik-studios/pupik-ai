@@ -377,6 +377,7 @@ function topicLinks(question, answer) {
   add(/дроб/, "https://ru.wikipedia.org/wiki/Дробь_(математика)");
   add(/нечетн|четн|двух?знач|трехзнач|однознач/, "https://ru.wikipedia.org/wiki/Чётные_и_нечётные_числа");
   add(/бленд|blender/, "https://www.blender.org/");
+  add(/х[еэ]л+[оа]?уин|halloween/, "https://ru.wikipedia.org/wiki/Хэллоуин");
   add(/питон|python/, "https://www.python.org/");
   add(/визуал|visual code|vscode/, "https://code.visualstudio.com/");
   return links;
@@ -388,6 +389,7 @@ function replyEmoji(question, hasImage) {
   if (/програм|код|питон|python|функци/.test(q)) return "💻";
   if (/объясн|дроб|понят/.test(q)) return "📚";
   if (/кто так|ривалд|ронал|месси|рамос|футбол/.test(q)) return "⚽";
+  if (/х[еэ]л+[оа]?уин|halloween/.test(q)) return "🎃";
   if (/привет|здравств|как дела/.test(q)) return "👋";
   return "✨";
 }
@@ -1042,6 +1044,9 @@ function localAnswer(question) {
   }
   if (/^(привет|здравств|хай|hello|hi)(\s|$)/.test(q)) {
     return `${name ? `Привет, ${name}` : "Привет"}. Я твой помощник: могу написать программу, рассказать факт, поучить русскому и нарисовать.${noteText()}`;
+  }
+  if (/х[еэ]л+[оа]?уин|halloween/.test(q)) {
+    return named("сегодня Хэллоуин, 31 октября. Вечером ставят фонари из тыквы, надевают костюмы и ходят за сладостями. Праздник пришёл из Ирландии, а название — от кануна Дня всех святых.");
   }
   if (/как дела|как ты/.test(q)) {
     return `${name ? name + ", у" : "У"} меня всё в порядке. Чем помочь?${noteText()}`;

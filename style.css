@@ -13,7 +13,9 @@ body {
   margin: 0;
   height: 100dvh;
   overflow: hidden;
-  background: #101114;
+  background:
+    radial-gradient(ellipse 55% 28% at 50% 0%, rgba(255, 122, 26, 0.18), transparent 62%),
+    #101114;
   -webkit-text-size-adjust: 100%;
 }
 
@@ -302,6 +304,14 @@ button {
   min-height: 0;
   height: 100%;
   flex-direction: column;
+}
+
+.halloween-mark {
+  margin-left: 10px;
+  color: #ff9a3c;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
 }
 
 .topbar {
@@ -664,6 +674,10 @@ button {
   .menu-button {
     min-width: 44px;
     min-height: 44px;
+  }
+
+  .halloween-mark span {
+    display: none;
   }
 
   .composer-area {

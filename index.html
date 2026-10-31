@@ -5,7 +5,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
   <title>Pupik AI</title>
-  <link rel="stylesheet" href="style.css?v=25">
+  <link rel="stylesheet" href="style.css?v=26">
 </head>
 <body>
 
@@ -62,6 +62,7 @@
     <header class="topbar">
       <button class="menu-button" id="menuButton">☰</button>
       <div class="top-title">Новый диалог</div>
+      <span class="halloween-mark">🎃 <span>Хэллоуин</span></span>
       <div class="model-status">
         <span class="status-dot" id="statusDot"></span>
         <span id="statusText">Pupik AI</span>
@@ -73,7 +74,7 @@
       <div class="welcome" id="welcome">
         <div class="welcome-logo">P</div>
         <h1>Привет! Я Pupik AI</h1>
-        <p>Твой AI-агент. Задай вопрос — и начнём.</p>
+        <p>Сегодня Хэллоуин. Задай вопрос — и начнём.</p>
 
         <div class="suggestions">
           <button class="suggestion" data-prompt="Объясни мне сложную тему простыми словами">
@@ -92,6 +93,12 @@
             <span>💻</span>
             <strong>Написать код</strong>
             <small>Программирование</small>
+          </button>
+
+          <button class="suggestion" data-prompt="Расскажи про Хэллоуин">
+            <span>🎃</span>
+            <strong>Хэллоуин</strong>
+            <small>31 октября</small>
           </button>
 
           <button class="suggestion" data-prompt="Расскажи что-нибудь интересное">
@@ -127,6 +134,6 @@
   </main>
 </div>
 
-<script type="module" src="app.js?v=55"></script>
+<script type="module" src="app.js?v=56"></script>
 </body>
 </html>
