@@ -800,6 +800,11 @@ print(удвоить(7))  # 14
   return "";
 }
 
+function digitsRepeat(n) {
+  const text = String(n);
+  return new Set(text).size !== text.length;
+}
+
 function countAnswer(q) {
   if (!/сколько|разбер|посчитай|существу/.test(q)) return "";
   const spans = [
@@ -813,27 +818,49 @@ function countAnswer(q) {
   const [, from, to, label] = span;
   const odd = /неч[её]т/.test(q);
   const even = !odd && /ч[её]тн/.test(q);
+  const distinct = /неповторя|разн[а-я]* цифр|без повтор/.test(q);
   const multiple = Number((q.match(/кратн[а-яё]*\s+(\d+)|на\s+(\d+)/) || []).slice(1).find(Boolean)) || 0;
   let total = 0;
   const examples = [];
+  const skipped = [];
   for (let n = from; n <= to; n += 1) {
     if (odd && n % 2 === 0) continue;
     if (even && n % 2 !== 0) continue;
     if (multiple && n % multiple !== 0) continue;
+    if (distinct && digitsRepeat(n)) {
+      if (skipped.length < 5) skipped.push(n);
+      continue;
+    }
     total += 1;
     if (examples.length < 5) examples.push(n);
   }
-  const kind = `${odd ? "нечётные " : even ? "чётные " : ""}${multiple ? `кратные ${multiple} ` : ""}`;
+  const filters = [
+    odd ? "нечётные" : "",
+    even ? "чётные" : "",
+    distinct ? "без повторяющихся цифр" : "",
+    multiple ? `кратные ${multiple}` : ""
+  ].filter(Boolean);
+  const among = filters.length ? `Нужны ${filters.join(", ")}. ` : "";
   const last = odd
     ? "Последняя цифра 1, 3, 5, 7 или 9."
     : even
       ? "Последняя цифра 0, 2, 4, 6 или 8."
       : "Считаю все числа в этом промежутке.";
-  const among = kind ? `Среди них ${kind.trim()}. ` : "";
+  const skipLine = skipped.length ? `\n${skipped.join(", ")} не считаю: цифры повторяются.` : "";
   return named(`${label} числа идут от ${from} до ${to}. ${among}${last}
 
 Примеры: ${examples.join(", ")}.
-Таких чисел ${total}.`);
+Таких чисел ${total}.${skipLine}`);
+}
+
+function countFollowUp(q) {
+  if (!/не должн|не счита|убери|подобн|таму|тому/.test(q)) return "";
+  const earlier = recentUserTexts(6).find(item => /сколько|существу|двух?знач|трехзнач|однознач/.test(item));
+  if (!earlier) return "";
+  const sample = (q.match(/\d+/) || [])[0] || "";
+  const repeats = sample.length > 1 && new Set(sample).size < sample.length;
+  const next = repeats || /неповторя/.test(q) ? `${earlier} неповторяющихся` : earlier;
+  return countAnswer(next);
 }
 
 function ideaAnswer(q) {
@@ -906,7 +933,7 @@ function localAnswer(question) {
   const code = codeAnswer(q);
   if (code) return code;
 
-  const counted = countAnswer(q);
+  const counted = countAnswer(q) || countFollowUp(q);
   if (counted) return counted;
 
   const explained = explainAnswer(q);
