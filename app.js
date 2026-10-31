@@ -854,6 +854,7 @@ function recentUserTexts(limit = 4) {
 
 function knownSite(text) {
   const sites = [
+    [/дота\s*2|dota\s*2|дота2|dota2/, "https://www.dota2.com", "Dota 2"],
     [/чат\s*джпт|чат\s*гпт|чатгпт|chatgpt/, "https://chatgpt.com", "ChatGPT"],
     [/ютуб|youtube/, "https://www.youtube.com", "YouTube"],
     [/википеди|wikipedia/, "https://ru.wikipedia.org", "Википедия"]
@@ -862,18 +863,24 @@ function knownSite(text) {
   return hit ? { url: hit[1], name: hit[2] } : null;
 }
 
+function linkTarget(q) {
+  return q
+    .replace(/дай|скинь|пришли|нужн\w*|найди|покажи|официальн\w*|сайт\w*|ссылк\w*|на|мне|пожалуйста/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function linkFollowUp(q) {
-  if (!/ссылк/.test(q)) return "";
-  const texts = [q, ...recentUserTexts(4)];
+  if (!/ссылк|официальн\w*\s+сайт/.test(q)) return "";
+  const target = linkTarget(q);
+  const texts = target ? [q] : [q, ...recentUserTexts(4)];
   for (const text of texts) {
     const site = knownSite(text);
     if (site) return named(`вот ссылка на ${site.name}: ${site.url}`);
     if (isCs(text)) return downloadAnswer(`${text} ${q}`);
   }
-  const earlier = recentUserTexts(2).map(item => `«${item.slice(0, 60)}»`).join("; ");
-  return named(earlier
-    ? `среди последних сообщений нет сайта: ${earlier}. Напиши название ещё раз.`
-    : "напиши, на что нужна ссылка.");
+  if (target) return named(`отдельной ссылки на «${target}» у меня нет. Напиши название ещё раз, без старой темы.`);
+  return named("напиши, на что нужна ссылка.");
 }
 
 let projectDirectory = null;
