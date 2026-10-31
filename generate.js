@@ -1048,14 +1048,18 @@ export function photoSubjects(prompt) {
     found.push({ query, label, title, at: match.index, known: true });
   }
   found.sort((a, b) => a.at - b.at);
-  if (found.length) return found.slice(0, 2);
   const rest = p
     .replace(/нарисуй|картинк\w*|фото\w*|рисунок\w*|друг\w*|лицом|спереди|анфас|вперед|вперёд/g, " ")
     .replace(/номер[а-я]*\s*\d+|с\s+номером\s*\d+/g, " ")
     .replace(/\s+/g, " ")
     .trim();
-  if (!rest) return [];
-  return [{ query: rest, label: rest, title: null, at: 0, known: false }];
+  const restWords = rest.split(" ").filter(Boolean);
+  const generic = found.length === 1 && /football|person|space|sea/.test(found[0].query) && restWords.length > 1;
+  if (generic || !found.length) {
+    if (!rest) return [];
+    return [{ query: rest, label: rest, title: null, at: 0, known: false }];
+  }
+  return found.slice(0, 2);
 }
 
 async function toEnglish(text) {
@@ -1112,7 +1116,7 @@ function titleQuery(phrase) {
   const words = String(phrase || "")
     .split(/\s+/)
     .map(word => word.replace(/[^\p{L}\p{N}-]/gu, ""))
-    .filter(word => word.length > 1);
+    .filter(word => word.length > 2 && !/^(of|the|and|for|with|from)$/i.test(word));
   if (!words.length) return "";
   return words.map(word => `intitle:${word}`).join(" ");
 }
@@ -1136,7 +1140,7 @@ async function searchPhotos(term, titlePattern) {
   if (!response.ok) throw new Error("commons");
   const data = await response.json();
   const pages = Object.values(data.query?.pages || {});
-  const skip = /escultura|statue|sculpture|logo|icon|\bmap\b|flag|diagram|drawing|sketch|svg|coat of arms|monument|museum|museu|hotel|20120609|boots on display|river|lake|bridge|valley|street|road|village|district|park|drive|dunes|geograph/i;
+  const skip = /escultura|statue|sculpture|logo|icon|\bmap\b|flag|diagram|drawing|sketch|svg|coat of arms|monument|museum|museu|hotel|20120609|boots on display|river|lake|bridge|valley|street|road|village|district|park|drive|dunes|geograph|hosts|countries|chart|graph|locator|timeline/i;
   return pages
     .map(page => ({
       title: page.title || "",
@@ -1175,6 +1179,10 @@ async function findPhoto(subject, turn = 0, options = {}) {
   } else if (face) {
     const facing = pool.filter(item => /portrait|face|head/i.test(item.title));
     if (facing.length) pool = facing;
+  }
+  if (!subject.known && /world cup/i.test(phrase)) {
+    const cup = pool.filter(item => /fifa|trophy|final|football|soccer/i.test(item.title));
+    if (cup.length) pool = cup;
   }
   if (action && !pool.length) throw new Error(`Нет фото, где ${subject.label} ${action.label}.`);
   const fresh = pool.filter(item => !seenPhotos().includes(item.url));

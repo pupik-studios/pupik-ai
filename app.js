@@ -1,5 +1,5 @@
 
-import { generateImage, wantsImage, extractImagePrompt, photoSubjects } from "./generate.js?v=33";
+import { generateImage, wantsImage, extractImagePrompt, photoSubjects } from "./generate.js?v=34";
 import { trySolve } from "./knowledge.js?v=19";
 
 const NAME_KEY = "pupik_user_name";
@@ -807,9 +807,6 @@ function localAnswer(question) {
   const aboutPhoto = photoReaction(q);
   if (aboutPhoto) return aboutPhoto;
 
-  const linked = linkFollowUp(q);
-  if (linked) return linked;
-
   const download = downloadAnswer(q);
   if (download) return download;
 
@@ -852,17 +849,6 @@ function recentUserTexts(limit = 4) {
   return users.slice(0, -1).slice(-limit).map(item => item.content.toLowerCase().replace(/ё/g, "е"));
 }
 
-function knownSite(text) {
-  const sites = [
-    [/дота\s*2|dota\s*2|дота2|dota2/, "https://www.dota2.com", "Dota 2"],
-    [/чат\s*джпт|чат\s*гпт|чатгпт|chatgpt/, "https://chatgpt.com", "ChatGPT"],
-    [/ютуб|youtube/, "https://www.youtube.com", "YouTube"],
-    [/википеди|wikipedia/, "https://ru.wikipedia.org", "Википедия"]
-  ];
-  const hit = sites.find(([pattern]) => pattern.test(text));
-  return hit ? { url: hit[1], name: hit[2] } : null;
-}
-
 function linkTarget(q) {
   return q
     .replace(/(?:^|[^а-яa-z])(?:дай|скинь|пришли|нужн[а-я]*|найди|покажи|официальн[а-я]*|сайт[а-я]*|ссылк[а-я]*|на|мне|пожалуйста)(?=[^а-яa-z]|$)/g, " ")
@@ -870,17 +856,72 @@ function linkTarget(q) {
     .trim();
 }
 
-function linkFollowUp(q) {
-  if (!/ссылк|официальн\w*\s+сайт/.test(q)) return "";
-  const target = linkTarget(q);
-  const texts = target ? [q] : [q, ...recentUserTexts(4)];
-  for (const text of texts) {
-    const site = knownSite(text);
-    if (site) return named(`вот ссылка на ${site.name}: ${site.url}`);
-    if (isCs(text)) return downloadAnswer(`${text} ${q}`);
+async function wikiJson(base, params) {
+  const url = new URL(base);
+  Object.entries(params).forEach(([key, value]) => url.searchParams.set(key, value));
+  const response = await fetch(url);
+  if (!response.ok) throw new Error("wiki");
+  return response.json();
+}
+
+async function officialSite(name) {
+  const opened = await wikiJson("https://ru.wikipedia.org/w/api.php", {
+    action: "opensearch",
+    search: name,
+    limit: "1",
+    namespace: "0",
+    format: "json",
+    origin: "*"
+  });
+  const title = opened?.[1]?.[0] || name;
+  let found = await wikiJson("https://www.wikidata.org/w/api.php", {
+    action: "wbsearchentities",
+    search: title,
+    language: "ru",
+    format: "json",
+    origin: "*",
+    limit: "1"
+  });
+  let hit = found.search?.[0];
+  if (!hit) {
+    found = await wikiJson("https://www.wikidata.org/w/api.php", {
+      action: "wbsearchentities",
+      search: title,
+      language: "en",
+      format: "json",
+      origin: "*",
+      limit: "1"
+    });
+    hit = found.search?.[0];
   }
-  if (target) return named(`отдельной ссылки на «${target}» у меня нет. Напиши название ещё раз, без старой темы.`);
-  return named("напиши, на что нужна ссылка.");
+  if (!hit?.id) return null;
+  const entity = await wikiJson("https://www.wikidata.org/w/api.php", {
+    action: "wbgetentities",
+    ids: hit.id,
+    props: "claims",
+    format: "json",
+    origin: "*"
+  });
+  const claims = entity.entities?.[hit.id]?.claims?.P856;
+  const url = claims?.[0]?.mainsnak?.datavalue?.value;
+  if (!url || !/^https?:\/\//i.test(url)) return null;
+  return { name: hit.label || title, url: url.replace(/^http:\/\//i, "https://") };
+}
+
+async function answerOfficialLink(question) {
+  const q = question.toLowerCase().replace(/ё/g, "е");
+  if (!/ссылк|официальн[а-я]*\s+сайт/.test(q)) return "";
+  const target = linkTarget(q);
+  const source = target || recentUserTexts(4).map(linkTarget).find(Boolean) || "";
+  if (!source) return named("напиши, на что нужна ссылка.");
+  if (isCs(source) || isCs(q)) return downloadAnswer(`${source} ${q}`);
+  try {
+    const site = await officialSite(source);
+    if (site) return named(`вот ссылка на ${site.name}: ${site.url}`);
+  } catch (error) {
+    console.warn("Сайт не найден:", error);
+  }
+  return named(`не нашёл официальный сайт «${source}».`);
 }
 
 let projectDirectory = null;
@@ -1088,7 +1129,10 @@ async function sendMessage(text) {
 
     const follow = imageFollowUp(question);
     const job = computerTask(question);
-    if (job) {
+    const official = (!job && !(wantsImage(question) || follow)) ? await answerOfficialLink(question) : "";
+    if (official) {
+      answer = official;
+    } else if (job) {
       answer = computerReply(job);
     } else if (/гном/.test(question.toLowerCase().replace(/ё/g, "е"))) {
       answer = "Ты имел в виду Месси?";
