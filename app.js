@@ -310,6 +310,7 @@ function taskKind(question) {
   if (/програм|код|питон|python|игр/.test(q)) return "код";
   if (/объясн|как понять|дроб/.test(q)) return "объяснение";
   if (/кто так|кто создател|кто такой/.test(q)) return "справка";
+  if (/файл|папк|список файлов/.test(q)) return "компьютер";
   return "ответ";
 }
 
@@ -321,9 +322,12 @@ function asAgent(question, result) {
     объяснение: ["Беру тему из сообщения", "Объясняю на коротком примере", "Оставляю шаги"],
     справка: ["Смотрю, о ком или о чём речь", "Собираю короткие факты", "Отвечаю"],
     уточнение: ["Смотрю слово", "Сверяю, не имя ли это", "Переспрашиваю"],
-    ответ: ["Читаю сообщение", "Делаю то, что в нём сказано", "Показываю результат"]
+    компьютер: ["Проверяю, что это действие с файлом", "Жду разрешение и выбранную папку", "Делаю только это действие"],
+    ответ: ["Читаю сообщение", "Сверяю с двумя предыдущими репликами", "Показываю результат"]
   }[taskKind(question)];
-  return `Агент\n1. ${steps[0]}\n2. ${steps[1]}\n3. ${steps[2]}\n\nРезультат:\n${result}`;
+  const earlier = recentUserTexts(2).map(item => `«${item.slice(0, 70)}»`);
+  const memory = earlier.length ? `Помню: ${earlier.join("; ")}.` : "Раньше в этом чате сообщений нет.";
+  return `Агент\n1. ${steps[0]}\n2. ${steps[1]}\n3. ${steps[2]}\n${memory}\n\nРезультат:\n${result}`;
 }
 
 function decorateReply(question, answer, hasImage) {
@@ -843,14 +847,152 @@ function downloadAnswer(q) {
   return named(`Counter-Strike 2 бесплатный в Steam: ${CS_LINK}`);
 }
 
+function recentUserTexts(limit = 4) {
+  const users = chatHistory.filter(item => item.role === "user");
+  return users.slice(0, -1).slice(-limit).map(item => item.content.toLowerCase().replace(/ё/g, "е"));
+}
+
+function knownSite(text) {
+  const sites = [
+    [/чат\s*джпт|чат\s*гпт|чатгпт|chatgpt/, "https://chatgpt.com", "ChatGPT"],
+    [/ютуб|youtube/, "https://www.youtube.com", "YouTube"],
+    [/википеди|wikipedia/, "https://ru.wikipedia.org", "Википедия"]
+  ];
+  const hit = sites.find(([pattern]) => pattern.test(text));
+  return hit ? { url: hit[1], name: hit[2] } : null;
+}
+
 function linkFollowUp(q) {
-  if (!/дай ссыл|скинь ссыл|где ссыл|нужна ссыл|пришли ссыл/.test(q)) return "";
-  const prev = previousUserText();
-  const fromPrev = prev ? downloadAnswer(prev) : "";
-  if (fromPrev) return fromPrev;
-  return named(prev
-    ? `уточни, на что нужна ссылка. Прошлая тема: «${prev.slice(0, 80)}».`
+  if (!/ссылк/.test(q)) return "";
+  const texts = [q, ...recentUserTexts(4)];
+  for (const text of texts) {
+    const site = knownSite(text);
+    if (site) return named(`вот ссылка на ${site.name}: ${site.url}`);
+    if (isCs(text)) return downloadAnswer(`${text} ${q}`);
+  }
+  const earlier = recentUserTexts(2).map(item => `«${item.slice(0, 60)}»`).join("; ");
+  return named(earlier
+    ? `среди последних сообщений нет сайта: ${earlier}. Напиши название ещё раз.`
     : "напиши, на что нужна ссылка.");
+}
+
+let projectDirectory = null;
+
+function safeFileName(raw) {
+  const name = String(raw || "").trim().replace(/[?!.]+$/g, "");
+  if (!name || /[\\/]|\.\./.test(name)) return "";
+  if (!/^[\p{L}\p{N} .()-]+\.(txt|md|py|js|html|css|json)$/iu.test(name)) return "";
+  return name;
+}
+
+function computerTask(question) {
+  const q = question.toLowerCase().replace(/ё/g, "е");
+  if (/запусти программ|открой калькулятор|выключи компьютер|удали систем/.test(q)) return { type: "unsupported" };
+  if (/список файлов|покажи файлы|какие файлы|файлы в папке/.test(q)) return { type: "list" };
+  const read = question.match(/(?:прочитай|открой|покажи)\s+файл\s+(.+)$/i);
+  if (read) {
+    const name = safeFileName(read[1]);
+    return name ? { type: "read", name } : { type: "badname" };
+  }
+  const write = question.match(/(?:создай|запиши|сохрани)\s+файл\s+(\S+)(?:\s+с текстом\s+([\s\S]+))?$/i);
+  if (write) {
+    const name = safeFileName(write[1]);
+    const body = `${(write[2] || "Файл создан Pupik AI.").trim()}\n`;
+    return name ? { type: "write", name, body } : { type: "badname" };
+  }
+  return null;
+}
+
+function computerReply(task) {
+  if (task.type === "unsupported") {
+    return named("в браузере я не запускаю программы и не трогаю систему. С разрешения могу показать, прочитать или записать файл в папке, которую ты выберешь.");
+  }
+  if (task.type === "badname") {
+    return named("имя файла должно быть без папок, с расширением txt, md, py, js, html, css или json.");
+  }
+  if (!agentOn()) {
+    return named("включи кнопку «Агент». Файл на компьютере я открою только после твоего разрешения.");
+  }
+  const what = task.type === "list"
+    ? "показать имена файлов в выбранной папке"
+    : task.type === "read"
+      ? `прочитать файл ${task.name}`
+      : `записать файл ${task.name}`;
+  return named(`нужно разрешение: ${what}. Нажми «Разрешить» и выбери папку. Другие места на компьютере я не открою.`);
+}
+
+function showPermission(task) {
+  if (!agentOn() || !task || task.type === "unsupported" || task.type === "badname") return;
+  const card = document.createElement("section");
+  card.className = "agent-card";
+  const heading = document.createElement("strong");
+  heading.textContent = "Агент просит разрешение";
+  const details = document.createElement("p");
+  details.textContent = task.type === "list"
+    ? "Прочитаю только имена файлов в папке, которую ты укажешь."
+    : task.type === "read"
+      ? `Прочитаю файл ${task.name} из выбранной папки.`
+      : `Запишу файл ${task.name} в выбранную папку. Старый файл с таким именем будет заменён.`;
+  const actions = document.createElement("div");
+  actions.className = "agent-actions";
+  const approve = document.createElement("button");
+  approve.type = "button";
+  approve.className = "agent-approve";
+  approve.textContent = "Разрешить";
+  const reject = document.createElement("button");
+  reject.type = "button";
+  reject.className = "agent-reject";
+  reject.textContent = "Отклонить";
+  approve.addEventListener("click", async () => {
+    approve.disabled = true;
+    reject.disabled = true;
+    try {
+      if (!projectDirectory) {
+        if (!window.showDirectoryPicker) {
+          throw new Error("Этот браузер не даёт выбрать папку. Открой Pupik AI в Chrome.");
+        }
+        projectDirectory = await window.showDirectoryPicker({ mode: "readwrite" });
+      }
+      let text = "";
+      if (task.type === "list") {
+        const names = [];
+        for await (const [name, handle] of projectDirectory.entries()) {
+          names.push(`${handle.kind === "directory" ? "папка" : "файл"} ${name}`);
+        }
+        text = names.length ? names.join("\n") : "Папка пустая.";
+      } else if (task.type === "read") {
+        const handle = await projectDirectory.getFileHandle(task.name);
+        text = await (await handle.getFile()).text();
+      } else {
+        const handle = await projectDirectory.getFileHandle(task.name, { create: true });
+        const writable = await handle.createWritable();
+        await writable.write(task.body);
+        await writable.close();
+        text = `Записал ${task.name} в папку ${projectDirectory.name}.`;
+      }
+      card.remove();
+      const done = `Готово, папка «${projectDirectory.name}».\n${text.slice(0, 4000)}`;
+      chatHistory.push({ role: "assistant", content: done });
+      addMessageToScreen("assistant", done);
+      saveCurrentChat();
+    } catch (error) {
+      approve.disabled = false;
+      reject.disabled = false;
+      if (error?.name === "AbortError") return;
+      details.textContent = error?.message || "Не удалось выполнить действие.";
+    }
+  });
+  reject.addEventListener("click", () => {
+    card.remove();
+    const done = "Действие отклонено. Файлы не открывал.";
+    chatHistory.push({ role: "assistant", content: done });
+    addMessageToScreen("assistant", done);
+    saveCurrentChat();
+  });
+  actions.append(approve, reject);
+  card.append(heading, details, actions);
+  messagesElement.appendChild(card);
+  messagesElement.scrollTop = messagesElement.scrollHeight;
 }
 
 function fallbackAnswer() {
@@ -938,7 +1080,10 @@ async function sendMessage(text) {
     let image = "";
 
     const follow = imageFollowUp(question);
-    if (/гном/.test(question.toLowerCase().replace(/ё/g, "е"))) {
+    const job = computerTask(question);
+    if (job) {
+      answer = computerReply(job);
+    } else if (/гном/.test(question.toLowerCase().replace(/ё/g, "е"))) {
       answer = "Ты имел в виду Месси?";
     } else if (wantsImage(question) || follow) {
       const prompt = follow || extractImagePrompt(question);
@@ -978,6 +1123,7 @@ async function sendMessage(text) {
     });
 
     addMessageToScreen("assistant", answer, image);
+    if (job && agentOn()) showPermission(job);
     saveCurrentChat();
 
   } catch (error) {

@@ -541,6 +541,44 @@ button {
   font-size: 12px;
 }
 
+.agent-card {
+  margin: 4px 0 8px 48px;
+  padding: 14px;
+  border: 1px solid #55566b;
+  border-radius: 12px;
+  background: #191a24;
+  color: #eee;
+}
+
+.agent-card p {
+  margin: 8px 0 0;
+  white-space: pre-wrap;
+}
+
+.agent-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.agent-approve,
+.agent-reject {
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 8px;
+  font-weight: 700;
+}
+
+.agent-approve {
+  background: #36b987;
+  color: #071b13;
+}
+
+.agent-reject {
+  background: #383947;
+  color: white;
+}
+
 .composer {
   display: flex;
   align-items: flex-end;
