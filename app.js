@@ -2,7 +2,7 @@
 import { generateImage, wantsImage, extractImagePrompt, photoSubjects } from "./generate.js?v=34";
 import { trySolve } from "./knowledge.js?v=19";
 
-const MODEL = "onnx-community/Qwen2.5-1.5B-Instruct";
+const MODEL = "onnx-community/Qwen2.5-3B-Instruct";
 let ai = null;
 let loadingPromise = null;
 
@@ -89,7 +89,7 @@ async function qwenAnswer() {
       do_sample: true,
       top_p: 0.9,
       repetition_penalty: 1.08
-    }), 25000);
+    }), 45000);
     const clean = cleanModelText(extractAnswer(result));
     if (/не могу решить|теряюсь|превращен|тупост|какое-то странное|недоразумени/.test(clean.toLowerCase())) return "";
     return clean;
