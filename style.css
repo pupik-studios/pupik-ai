@@ -343,7 +343,7 @@ button {
   width: min(850px, 100%);
   min-height: 0;
   margin: 0 auto;
-  padding: 30px 25px 168px;
+  padding: 30px 25px 188px;
 }
 
 .welcome {
@@ -514,7 +514,8 @@ button {
 .agent-bar {
   display: flex;
   align-items: center;
-  gap: 10px;
+  flex-wrap: wrap;
+  gap: 8px;
   width: min(850px, 100%);
   margin: 0 auto 8px;
 }
@@ -616,7 +617,7 @@ button {
   }
 
   .chat-area {
-    padding: 20px 14px 168px;
+    padding: 20px 14px 200px;
   }
 
   .welcome h1 {

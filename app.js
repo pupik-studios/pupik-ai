@@ -231,9 +231,25 @@ function addMessageToScreen(role, content, image) {
 }
 
 const AGENT_KEY = "pupik_agent";
+const EMOJI_KEY = "pupik_emoji";
+const LINKS_KEY = "pupik_links";
+
+function flagOn(key, fallback) {
+  const value = localStorage.getItem(key);
+  if (value === null) return fallback;
+  return value === "1";
+}
 
 function agentOn() {
-  return localStorage.getItem(AGENT_KEY) === "1";
+  return flagOn(AGENT_KEY, false);
+}
+
+function emojiOn() {
+  return flagOn(EMOJI_KEY, true);
+}
+
+function linksOn() {
+  return flagOn(LINKS_KEY, true);
 }
 
 function fillMessage(element, content) {
@@ -258,8 +274,7 @@ function fillMessage(element, content) {
   if (last < text.length) element.append(document.createTextNode(text.slice(last)));
 }
 
-function agentReply(question, answer, hasImage) {
-  if (!agentOn() || !answer) return answer;
+function topicLinks(question, answer) {
   const q = question.toLowerCase().replace(/ё/g, "е");
   const links = [];
   const add = (pattern, url) => {
@@ -275,16 +290,53 @@ function agentReply(question, answer, hasImage) {
   add(/дроб/, "https://ru.wikipedia.org/wiki/Дробь_(математика)");
   add(/питон|python/, "https://www.python.org/");
   add(/визуал|visual code|vscode/, "https://code.visualstudio.com/");
+  return links;
+}
 
-  let emoji = "✨";
-  if (hasImage || /фото|нарисуй/.test(q)) emoji = "📸";
-  else if (/програм|код|питон|python|функци/.test(q)) emoji = "💻";
-  else if (/объясн|дроб|понят/.test(q)) emoji = "📚";
-  else if (/кто так|ривалд|ронал|месси|рамос|футбол/.test(q)) emoji = "⚽";
-  else if (/привет|здравств|как дела/.test(q)) emoji = "👋";
+function replyEmoji(question, hasImage) {
+  const q = question.toLowerCase().replace(/ё/g, "е");
+  if (hasImage || /фото|нарисуй/.test(q)) return "📸";
+  if (/програм|код|питон|python|функци/.test(q)) return "💻";
+  if (/объясн|дроб|понят/.test(q)) return "📚";
+  if (/кто так|ривалд|ронал|месси|рамос|футбол/.test(q)) return "⚽";
+  if (/привет|здравств|как дела/.test(q)) return "👋";
+  return "✨";
+}
 
-  const body = /\p{Extended_Pictographic}/u.test(answer) ? answer : `${emoji} ${answer}`;
-  return links.length ? `${body}\n\n🔗 ${links.join("\n")}` : body;
+function taskKind(question) {
+  const q = question.toLowerCase().replace(/ё/g, "е");
+  if (/гном/.test(q)) return "уточнение";
+  if (wantsImage(question) || /нарисуй|фото/.test(q)) return "фото";
+  if (/програм|код|питон|python|игр/.test(q)) return "код";
+  if (/объясн|как понять|дроб/.test(q)) return "объяснение";
+  if (/кто так|кто создател|кто такой/.test(q)) return "справка";
+  return "ответ";
+}
+
+function asAgent(question, result) {
+  if (!agentOn() || !result) return result;
+  const steps = {
+    фото: ["Читаю, что нарисовать", "Ищу одно фото по словам в названии", "Показываю снимок"],
+    код: ["Читаю, какая нужна программа", "Пишу код", "Отдаю текст и как его запустить"],
+    объяснение: ["Беру тему из сообщения", "Объясняю на коротком примере", "Оставляю шаги"],
+    справка: ["Смотрю, о ком или о чём речь", "Собираю короткие факты", "Отвечаю"],
+    уточнение: ["Смотрю слово", "Сверяю, не имя ли это", "Переспрашиваю"],
+    ответ: ["Читаю сообщение", "Делаю то, что в нём сказано", "Показываю результат"]
+  }[taskKind(question)];
+  return `Агент\n1. ${steps[0]}\n2. ${steps[1]}\n3. ${steps[2]}\n\nРезультат:\n${result}`;
+}
+
+function decorateReply(question, answer, hasImage) {
+  if (!answer) return answer;
+  let text = answer;
+  if (emojiOn() && !/\p{Extended_Pictographic}/u.test(text)) {
+    text = `${replyEmoji(question, hasImage)} ${text}`;
+  }
+  if (linksOn()) {
+    const links = topicLinks(question, text);
+    if (links.length) text = `${text}\n\n${links.join("\n")}`;
+  }
+  return text;
 }
 
 function addTyping() {
@@ -884,7 +936,7 @@ async function sendMessage(text) {
     }
 
     if (!answer && !image) answer = fallbackAnswer();
-    answer = agentReply(question, answer, Boolean(image));
+    answer = decorateReply(question, asAgent(question, answer), Boolean(image));
 
     removeTyping();
 
@@ -901,7 +953,7 @@ async function sendMessage(text) {
     removeTyping();
     console.error("Ошибка Pupik AI:", error);
 
-    const errorMessage = agentReply(question, localAnswer(question) || fallbackAnswer(), false);
+    const errorMessage = decorateReply(question, asAgent(question, localAnswer(question) || fallbackAnswer()), false);
     chatHistory.push({
       role: "assistant",
       content: errorMessage
@@ -972,24 +1024,39 @@ setStatus(false);
 applyName();
 
 const agentMode = document.getElementById("agentMode");
+const emojiMode = document.getElementById("emojiMode");
+const linksMode = document.getElementById("linksMode");
 const agentHint = document.getElementById("agentHint");
 
+function syncTool(button, on) {
+  button?.classList.toggle("active", on);
+  button?.setAttribute("aria-pressed", on ? "true" : "false");
+}
+
 function syncAgent() {
-  const on = agentOn();
-  agentMode?.classList.toggle("active", on);
-  agentMode?.setAttribute("aria-pressed", on ? "true" : "false");
-  if (agentHint) agentHint.textContent = on ? "Смайлики и ссылки в ответе" : "Обычный диалог";
+  syncTool(agentMode, agentOn());
+  syncTool(emojiMode, emojiOn());
+  syncTool(linksMode, linksOn());
+  const notes = [];
+  if (agentOn()) notes.push("агент по шагам");
+  if (emojiOn()) notes.push("смайлики");
+  if (linksOn()) notes.push("ссылки");
+  if (agentHint) agentHint.textContent = notes.length ? notes.join(" · ") : "Обычный диалог";
   if (input) {
-    input.placeholder = on
+    input.placeholder = agentOn()
       ? "Напиши задачу агенту..."
       : "Напиши сообщение Pupik AI...";
   }
 }
 
-agentMode?.addEventListener("click", () => {
-  localStorage.setItem(AGENT_KEY, agentOn() ? "0" : "1");
+function toggleFlag(key, read) {
+  localStorage.setItem(key, read() ? "0" : "1");
   syncAgent();
-});
+}
+
+agentMode?.addEventListener("click", () => toggleFlag(AGENT_KEY, agentOn));
+emojiMode?.addEventListener("click", () => toggleFlag(EMOJI_KEY, emojiOn));
+linksMode?.addEventListener("click", () => toggleFlag(LINKS_KEY, linksOn));
 
 syncAgent();
 
