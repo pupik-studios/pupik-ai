@@ -2,7 +2,7 @@
 import { generateImage, wantsImage, extractImagePrompt, photoSubjects } from "./generate.js?v=34";
 import { trySolve } from "./knowledge.js?v=19";
 
-const MODEL = "onnx-community/Qwen2.5-0.5B-Instruct";
+const MODEL = "onnx-community/Qwen2.5-1.5B-Instruct";
 let ai = null;
 let loadingPromise = null;
 
@@ -22,11 +22,18 @@ function loadAI() {
       const { pipeline, env } = await import("https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1");
       env.useBrowserCache = true;
       env.allowLocalModels = false;
-      ai = await pipeline("text-generation", MODEL, {
-        dtype: "q4",
-        device: "wasm",
+      const load = (device, dtype) => pipeline("text-generation", MODEL, {
+        dtype,
+        device,
         progress_callback: () => {}
       });
+      try {
+        ai = navigator.gpu ? await load("webgpu", "q4f16") : await load("wasm", "q4");
+      } catch (error) {
+        if (!navigator.gpu) throw error;
+        console.warn("WebGPU не вышел, беру wasm:", error);
+        ai = await load("wasm", "q4");
+      }
       return ai;
     } catch (error) {
       ai = null;
@@ -77,12 +84,12 @@ async function qwenAnswer() {
       }))
     ];
     const result = await withTimeout(ai(prompt, {
-      max_new_tokens: 120,
-      temperature: 0.7,
+      max_new_tokens: 180,
+      temperature: 0.6,
       do_sample: true,
       top_p: 0.9,
       repetition_penalty: 1.08
-    }), 8000);
+    }), 25000);
     const clean = cleanModelText(extractAnswer(result));
     if (/не могу решить|теряюсь|превращен|тупост|какое-то странное|недоразумени/.test(clean.toLowerCase())) return "";
     return clean;
