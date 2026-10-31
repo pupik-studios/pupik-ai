@@ -803,6 +803,12 @@ function localAnswer(question) {
   const aboutPhoto = photoReaction(q);
   if (aboutPhoto) return aboutPhoto;
 
+  const linked = linkFollowUp(q);
+  if (linked) return linked;
+
+  const download = downloadAnswer(q);
+  if (download) return download;
+
   const solved = trySolve(question);
   if (solved?.answer && !/нарисуй/.test(q)) return solved.answer;
 
@@ -820,6 +826,31 @@ function whoAnswer(q) {
   ];
   const hit = people.find(([pattern]) => pattern.test(q));
   return hit ? named(hit[1]) : "";
+}
+
+const CS_LINK = "https://store.steampowered.com/app/730/CounterStrike_2/";
+
+function isCs(q) {
+  return /(?:^|[^а-я])кс2?(?:[^а-я]|$)|cs2|counter-?strike|контр/.test(q);
+}
+
+function downloadAnswer(q) {
+  if (!isCs(q)) return "";
+  const mac = /мак\s*бук|macbook|на мак|для мак/.test(q);
+  if (mac) {
+    return named(`Counter-Strike 2 бесплатный в Steam, но версии для Mac нет: только Windows и Linux. На макбуке официального установщика нет. Страница игры: ${CS_LINK}`);
+  }
+  return named(`Counter-Strike 2 бесплатный в Steam: ${CS_LINK}`);
+}
+
+function linkFollowUp(q) {
+  if (!/дай ссыл|скинь ссыл|где ссыл|нужна ссыл|пришли ссыл/.test(q)) return "";
+  const prev = previousUserText();
+  const fromPrev = prev ? downloadAnswer(prev) : "";
+  if (fromPrev) return fromPrev;
+  return named(prev
+    ? `уточни, на что нужна ссылка. Прошлая тема: «${prev.slice(0, 80)}».`
+    : "напиши, на что нужна ссылка.");
 }
 
 function fallbackAnswer() {
