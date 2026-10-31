@@ -2,6 +2,84 @@
 import { generateImage, wantsImage, extractImagePrompt, photoSubjects } from "./generate.js?v=34";
 import { trySolve } from "./knowledge.js?v=19";
 
+const MODEL = "onnx-community/Qwen2.5-0.5B-Instruct";
+let ai = null;
+let loadingPromise = null;
+
+function systemPrompt() {
+  return `Ты — Pupik AI на модели Qwen.
+Создатель: Владимиров Роберт Павлович.
+Пользователя зовут ${userName || "друг"}.
+Отвечай на языке пользователя. Если вопрос по-русски, отвечай по-русски.
+Объясняй коротко и по делу. Не выдумывай факты. Не ставь оценки вопросам.`;
+}
+
+function loadAI() {
+  if (ai) return Promise.resolve(ai);
+  if (loadingPromise) return loadingPromise;
+  loadingPromise = (async () => {
+    try {
+      const { pipeline, env } = await import("https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1");
+      env.useBrowserCache = true;
+      env.allowLocalModels = false;
+      ai = await pipeline("text-generation", MODEL, {
+        dtype: "q4",
+        device: "wasm",
+        progress_callback: () => {}
+      });
+      return ai;
+    } catch (error) {
+      ai = null;
+      console.warn("Qwen не загрузился:", error);
+      return null;
+    } finally {
+      loadingPromise = null;
+    }
+  })();
+  return loadingPromise;
+}
+
+function withTimeout(promise, ms) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), ms))
+  ]);
+}
+
+function extractAnswer(result) {
+  const generated = result?.[0]?.generated_text;
+  if (typeof generated === "string") return generated;
+  if (Array.isArray(generated)) {
+    const last = [...generated].reverse().find(item => item?.role === "assistant" && typeof item.content === "string");
+    return last?.content || "";
+  }
+  return "";
+}
+
+async function qwenAnswer() {
+  if (!ai) return "";
+  try {
+    const prompt = [
+      { role: "system", content: systemPrompt() },
+      ...chatHistory.slice(-6).map(item => ({
+        role: item.role === "assistant" ? "assistant" : "user",
+        content: String(item.content || "").slice(0, 1500)
+      }))
+    ];
+    const result = await withTimeout(ai(prompt, {
+      max_new_tokens: 120,
+      temperature: 0.7,
+      do_sample: true,
+      top_p: 0.9,
+      repetition_penalty: 1.08
+    }), 8000);
+    return extractAnswer(result).trim();
+  } catch (error) {
+    console.warn("Qwen не успел:", error);
+    return "";
+  }
+}
+
 const NAME_KEY = "pupik_user_name";
 
 let userName = localStorage.getItem(NAME_KEY) || "";
@@ -565,6 +643,7 @@ function showApp() {
 }
 
 function afterBoot() {
+  loadAI();
   if (!userName) {
     if (boot) boot.hidden = true;
     if (register) {
@@ -1361,6 +1440,7 @@ async function sendMessage(text) {
       answer = localAnswer(question);
     }
 
+    if (!answer && !image) answer = await qwenAnswer();
     if (!answer && !image) answer = fallbackAnswer();
     answer = decorateReply(question, asAgent(question, answer), Boolean(image));
 
