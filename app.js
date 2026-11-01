@@ -1,5 +1,5 @@
 
-import { generateImage, wantsImage, extractImagePrompt, photoSubjects } from "./generate.js?v=35";
+import { generateImage, wantsImage, extractImagePrompt, photoSubjects } from "./generate.js?v=36";
 import { trySolve } from "./knowledge.js?v=20";
 
 const MODELS = [
@@ -29,7 +29,7 @@ function systemPrompt() {
 
 function loadAI() {
   const repo = currentModel().repo;
-  if (!repo) return Promise.resolve(null);
+  if (!repo || !canLoadModel()) return Promise.resolve(null);
   if (ai && aiRepo === repo) return Promise.resolve(ai);
   if (loadingPromise && loadingRepo === repo) return loadingPromise;
   loadingRepo = repo;
@@ -96,7 +96,7 @@ function extractAnswer(result) {
 async function qwenAnswer() {
   const repo = currentModel().repo;
   if (!repo || !ai || aiRepo !== repo) {
-    if (repo && !loadingPromise) loadAI();
+    if (canLoadModel() && !loadingPromise) loadAI();
     return "";
   }
   try {
@@ -688,8 +688,18 @@ function showApp() {
   input.focus();
 }
 
+function phoneScreen() {
+  const narrow = Math.min(window.screen.width, window.screen.height) <= 900;
+  return narrow && (navigator.maxTouchPoints > 1 || /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent));
+}
+
+function canLoadModel() {
+  if (!currentModel().repo) return false;
+  return !(currentModel().id === "qwen3" && phoneScreen());
+}
+
 function afterBoot() {
-  if (currentModel().repo) loadAI();
+  if (canLoadModel()) loadAI();
   if (!userName) {
     if (boot) boot.hidden = true;
     if (register) {
@@ -1155,6 +1165,10 @@ function localAnswer(question) {
   const task = bareTask(q);
   if (task) return task;
 
+  if (/сколько|числен/.test(q) && /люд|человек|населен/.test(q) && /пл[ао]нет|мир|земл/.test(q)) {
+    return named("точного подсчёта в одну секунду нет. Сейчас на планете примерно 8,2 миллиарда человек.");
+  }
+
   if (/сколько/.test(q) && /кот/.test(q) && /пл[ао]нет|мир|земл/.test(q)) {
     return `${name ? name + ", т" : "Т"}очного числа нет: кошек никто не переписывает всех сразу. Домашних оценивают примерно в 600 миллионов, а вместе с бездомными — около миллиарда.`;
   }
@@ -1492,7 +1506,22 @@ function windowAnswer(q) {
 
 function fallbackAnswer() {
   const name = userName || "";
+  if (currentModel().id === "qwen3" && phoneScreen()) {
+    return `${name ? name + ", " : ""}Qwen 2.5 3B на телефоне не помещается. На компьютере в Chrome она отвечает, а здесь спроси факт, задачу или «нарисуй».`;
+  }
   return `${name ? name + ", я" : "Я"} на связи. Могу написать программу, разобрать задачу, рассказать факт или нарисовать.`;
+}
+
+function selfImagePrompt(question) {
+  const raw = extractImagePrompt(question);
+  const q = raw.toLowerCase().replace(/ё/g, "е");
+  if (!/(?:^|[^а-я])(?:меня|мне|себя)(?=[^а-я]|$)/.test(q)) return raw;
+  const name = (userName || "").trim();
+  if (!name || /^(?:меня|мне|себя)$/i.test(name)) return "";
+  return raw
+    .replace(/(?:^|[^а-яё])(?:меня|мне|себя)(?=[^а-яё]|$)/gi, ` ${name} `)
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function drawingCaption(question) {
@@ -1585,7 +1614,10 @@ async function sendMessage(text) {
     } else if (/гном/.test(question.toLowerCase().replace(/ё/g, "е"))) {
       answer = "Ты имел в виду Месси?";
     } else if (wantsImage(question) || follow) {
-      const prompt = follow || extractImagePrompt(question);
+      const prompt = follow || selfImagePrompt(question);
+      if (!prompt) {
+        answer = named("напиши имя в аккаунте, тогда «нарисуй меня» будет про тебя.");
+      } else {
       try {
         const drawn = await generateImage(prompt);
         image = drawn.dataUrl;
@@ -1607,6 +1639,7 @@ async function sendMessage(text) {
         answer = error?.message && error.message !== "no photo"
           ? error.message
           : "Не нашёл фото по этим словам.";
+      }
       }
     } else {
       answer = localAnswer(question);
@@ -1765,7 +1798,6 @@ function russianVoice() {
 
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 let recognition = null;
-let heardSomething = false;
 let restartTimer = 0;
 
 function stopHearing() {
@@ -1905,7 +1937,7 @@ function chooseModel(id) {
   aiRepo = "";
   loadingPromise = null;
   loadingRepo = "";
-  if (currentModel().repo) loadAI();
+  if (canLoadModel()) loadAI();
   syncAgent();
 }
 

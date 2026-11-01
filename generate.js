@@ -1051,6 +1051,7 @@ export function photoSubjects(prompt) {
   found.sort((a, b) => a.at - b.at);
   const rest = p
     .replace(/нарисуй|картинк\w*|фото\w*|рисунок\w*|друг\w*|лицом|спереди|анфас|вперед|вперёд/g, " ")
+    .replace(/(?:^|\s)(?:меня|мне|себя)(?=\s|$)/g, " ")
     .replace(/номер[а-я]*\s*\d+|с\s+номером\s*\d+/g, " ")
     .replace(/\s+/g, " ")
     .trim();
