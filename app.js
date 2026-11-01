@@ -1776,17 +1776,30 @@ function startHearing() {
   if (!recognition) {
     recognition = new SpeechRecognition();
     recognition.lang = "ru-RU";
-    recognition.interimResults = false;
+    recognition.interimResults = true;
     recognition.continuous = false;
     recognition.onresult = event => {
-      const said = event.results?.[0]?.[0]?.transcript?.trim() || "";
+      const last = event.results?.[event.results.length - 1];
+      const said = last?.[0]?.transcript?.trim() || "";
       if (!said) return;
+      if (!last.isFinal) {
+        setVoicePhase("listen", said);
+        return;
+      }
+      if (sameWords(said, lastSpoken)) return;
       heardSomething = true;
       stopHearing();
       sendMessage(said);
     };
     recognition.onerror = event => {
-      if (event.error === "not-allowed" || event.error === "service-not-allowed") voiceBlocked = true;
+      if (event.error === "not-allowed" || event.error === "service-not-allowed") {
+        voiceBlocked = true;
+        setVoicePhase("listen", "Разреши микрофон в Chrome.");
+      } else if (event.error === "network") {
+        setVoicePhase("listen", "Не достучался до распознавания. Скажи ещё раз.");
+      } else if (event.error !== "no-speech" && event.error !== "aborted") {
+        setVoicePhase("listen", "Не расслышал. Скажи ещё раз.");
+      }
       hearing = false;
       syncMic();
     };
@@ -1808,29 +1821,51 @@ function startHearing() {
   }
 }
 
+let speakGen = 0;
+let lastSpoken = "";
+
+function sameWords(a, b) {
+  const norm = value => String(value || "").toLowerCase().replace(/ё/g, "е").replace(/[^\p{L}\p{N}]+/gu, "");
+  return norm(a) && norm(a) === norm(b);
+}
+
+function finishSpeaking(gen) {
+  if (gen !== speakGen) return;
+  speaking = false;
+  setVoicePhase("listen", "Слушаю");
+  if (voiceOn() && !micPaused) window.setTimeout(() => startHearing(), 350);
+}
+
 function speakReply(text) {
   const plain = spokenText(text);
-  if (!voiceOn() || !plain || !window.speechSynthesis) return;
+  if (!voiceOn()) return;
+  if (!plain || !window.speechSynthesis) {
+    setVoicePhase("listen", plain || "Не расслышал. Скажи ещё раз.");
+    return;
+  }
+  const gen = ++speakGen;
   stopHearing();
-  window.speechSynthesis.cancel();
+  speaking = true;
+  lastSpoken = plain;
+  setVoicePhase("speak", plain);
   const utter = new SpeechSynthesisUtterance(plain);
   utter.lang = "ru-RU";
   utter.rate = 1;
   const picked = russianVoice();
   if (picked) utter.voice = picked;
-  utter.pitch = 1.05;
-  speaking = true;
-  setVoicePhase("speak", plain);
-  utter.onend = () => {
-    speaking = false;
-    setVoicePhase("listen", "Слушаю");
-    if (voiceOn() && !micPaused) startHearing();
+  utter.onend = () => finishSpeaking(gen);
+  utter.onerror = () => finishSpeaking(gen);
+  const say = () => {
+    if (gen !== speakGen || !voiceOn()) return;
+    if (window.speechSynthesis.paused) window.speechSynthesis.resume();
+    window.speechSynthesis.speak(utter);
   };
-  utter.onerror = () => {
-    speaking = false;
-    setVoicePhase("listen", "Слушаю");
-  };
-  window.speechSynthesis.speak(utter);
+  if (window.speechSynthesis.speaking || window.speechSynthesis.pending) {
+    window.speechSynthesis.cancel();
+    window.setTimeout(say, 80);
+  } else {
+    say();
+  }
 }
 
 function chooseModel(id) {
@@ -1878,6 +1913,7 @@ voiceMode?.addEventListener("click", () => {
   if (!next) {
     voiceBlocked = false;
     micPaused = true;
+    speakGen += 1;
     speaking = false;
     window.speechSynthesis?.cancel();
     stopHearing();
@@ -1885,16 +1921,14 @@ voiceMode?.addEventListener("click", () => {
     micPaused = false;
   }
   syncAgent();
-  if (next) {
-    setVoicePhase("listen", "Слушаю");
-    startHearing();
-  }
+  if (next) speakReply("Слушаю");
 });
 document.getElementById("voiceClose")?.addEventListener("click", () => voiceMode?.click());
 document.getElementById("voiceOrb")?.addEventListener("click", () => {
-  window.speechSynthesis?.cancel();
+  speakGen += 1;
   speaking = false;
   micPaused = false;
+  window.speechSynthesis?.cancel();
   setVoicePhase("listen", "Слушаю");
   startHearing();
 });
@@ -1905,10 +1939,18 @@ micButton?.addEventListener("click", () => {
     stopHearing();
   } else {
     micPaused = false;
+    if (!voiceOn()) {
+      localStorage.setItem(VOICE_KEY, "1");
+      micPaused = false;
+      syncAgent();
+      speakReply("Слушаю");
+      return;
+    }
     startHearing();
   }
 });
 
+window.speechSynthesis?.getVoices();
 syncAgent();
 
 registerForm?.addEventListener("submit", event => {
