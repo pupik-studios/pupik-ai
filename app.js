@@ -1763,160 +1763,91 @@ function russianVoice() {
     || voices.find(item => /^ru/i.test(item.lang));
 }
 
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+let recognition = null;
+let heardSomething = false;
+let restartTimer = 0;
+
 function stopHearing() {
   hearing = false;
+  window.clearTimeout(restartTimer);
+  try { recognition?.stop(); } catch { /* already stopped */ }
   syncMic();
 }
 
-let ear = null;
-let earPromise = null;
-let micReady = null;
-let micContext = null;
-let micProcessor = null;
-let micChunks = [];
-let micVoiced = false;
-let micSilence = 0;
-let micBusy = false;
-
-function concatFloats(list) {
-  const length = list.reduce((sum, item) => sum + item.length, 0);
-  const out = new Float32Array(length);
-  let offset = 0;
-  list.forEach(item => {
-    out.set(item, offset);
-    offset += item.length;
-  });
-  return out;
-}
-
-function downsample(buffer, fromRate, toRate) {
-  if (!buffer.length || fromRate === toRate) return buffer;
-  const ratio = fromRate / toRate;
-  const out = new Float32Array(Math.round(buffer.length / ratio));
-  for (let i = 0; i < out.length; i += 1) {
-    out[i] = buffer[Math.min(buffer.length - 1, Math.round(i * ratio))];
-  }
-  return out;
-}
-
-function loadEar() {
-  if (ear) return Promise.resolve(ear);
-  if (earPromise) return earPromise;
-  earPromise = (async () => {
-    const { pipeline, env } = await import("https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1");
-    env.useBrowserCache = true;
-    env.allowLocalModels = false;
-    try {
-      ear = await pipeline("automatic-speech-recognition", "Xenova/whisper-tiny", { dtype: "q8", device: "wasm" });
-    } catch (error) {
-      console.warn("Беру обычный Whisper:", error);
-      ear = await pipeline("automatic-speech-recognition", "Xenova/whisper-tiny", { device: "wasm" });
-    }
-    return ear;
-  })().catch(error => {
-    earPromise = null;
-    throw error;
-  });
-  return earPromise;
-}
-
-function ensureMic() {
-  if (micProcessor) return Promise.resolve(true);
-  if (micReady) return micReady;
-  micReady = (async () => {
-    setVoicePhase("think", "Готовлю слух…");
-    let stream;
-    try {
-      stream = await navigator.mediaDevices.getUserMedia({
-        audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true }
-      });
-    } catch (error) {
-      voiceBlocked = true;
-      setVoicePhase("listen", "Разреши микрофон в Chrome.");
-      throw error;
-    }
-    await loadEar();
-    micContext = new AudioContext();
-    if (micContext.state === "suspended") await micContext.resume();
-    const source = micContext.createMediaStreamSource(stream);
-    micProcessor = micContext.createScriptProcessor(4096, 1, 1);
-    const mute = micContext.createGain();
-    mute.gain.value = 0;
-    micProcessor.onaudioprocess = event => onMic(event.inputBuffer.getChannelData(0), micContext.sampleRate);
-    source.connect(micProcessor);
-    micProcessor.connect(mute);
-    mute.connect(micContext.destination);
-    return true;
-  })().catch(error => {
-    micReady = null;
-    console.warn("Микрофон не включился:", error);
-    if (!voiceBlocked) setVoicePhase("listen", "Слух не загрузился. Нажми круг ещё раз.");
-    return false;
-  });
-  return micReady;
-}
-
-async function transcribePhrase(samples, rate) {
-  const audio = downsample(samples, rate, 16000);
-  if (audio.length < 5600) return;
-  setVoicePhase("think", "Думаю");
-  const model = await loadEar();
-  const result = await model(audio, { language: "russian", task: "transcribe" });
-  const said = String(result?.text || "").replace(/\s+/g, " ").trim();
-  if (!said || sameWords(said, lastSpoken) || /субтит|спасибо за просмотр|редактор субтитров|продолжение следует|thank you for watching/i.test(said)) {
-    setVoicePhase("listen", "Слушаю");
+function startHearing() {
+  if (speaking || generating || voiceBlocked || micPaused) return;
+  if (!SpeechRecognition) {
+    setVoicePhase("listen", "В Safari голос не слышит. Открой страницу в Chrome.");
     return;
   }
-  sendMessage(said);
-}
-
-function onMic(channel, rate) {
-  if (!hearing || speaking || generating || micBusy || micPaused) return;
-  let sum = 0;
-  for (let i = 0; i < channel.length; i += 1) sum += channel[i] * channel[i];
-  const rms = Math.sqrt(sum / channel.length);
-  const copy = new Float32Array(channel);
-  if (rms > 0.015) {
-    if (!micVoiced) setVoicePhase("listen", "Слышу…");
-    micVoiced = true;
-    micSilence = 0;
-    micChunks.push(copy);
-  } else if (micVoiced) {
-    micChunks.push(copy);
-    micSilence += 1;
+  if (!recognition) {
+    recognition = new SpeechRecognition();
+    recognition.lang = "ru-RU";
+    recognition.interimResults = true;
+    recognition.continuous = true;
+    recognition.onresult = event => {
+      let interim = "";
+      let finalText = "";
+      for (let i = event.resultIndex; i < event.results.length; i += 1) {
+        const piece = event.results[i][0]?.transcript?.trim() || "";
+        if (!piece) continue;
+        if (event.results[i].isFinal) finalText = `${finalText} ${piece}`.trim();
+        else interim = `${interim} ${piece}`.trim();
+      }
+      if (interim) setVoicePhase("listen", interim);
+      if (!finalText || sameWords(finalText, lastSpoken)) return;
+      heardSomething = true;
+      stopHearing();
+      sendMessage(finalText);
+    };
+    recognition.onerror = event => {
+      if (event.error === "not-allowed" || event.error === "service-not-allowed") {
+        voiceBlocked = true;
+        setVoicePhase("listen", "Разреши микрофон в Chrome.");
+      } else if (event.error === "network") {
+        micPaused = true;
+        setVoicePhase("listen", "Chrome не разобрал речь. Напиши вопрос текстом.");
+      } else if (event.error !== "no-speech" && event.error !== "aborted") {
+        setVoicePhase("listen", "Не расслышал. Скажи ещё раз.");
+      }
+      hearing = false;
+      syncMic();
+    };
+    recognition.onend = () => {
+      hearing = false;
+      syncMic();
+      if (voiceOn() && !micPaused && !voiceBlocked && !speaking && !generating && !heardSomething) {
+        restartTimer = window.setTimeout(() => startHearing(), 300);
+      }
+      heardSomething = false;
+    };
   }
-  const samples = micChunks.reduce((sum, item) => sum + item.length, 0);
-  const ended = micVoiced && (micSilence >= 10 || samples > rate * 12);
-  if (!ended) return;
-  const phrase = concatFloats(micChunks);
-  micChunks = [];
-  micVoiced = false;
-  micSilence = 0;
-  micBusy = true;
-  transcribePhrase(phrase, rate).catch(error => {
-    console.warn("Речь не разобралась:", error);
-    setVoicePhase("listen", "Не разобрал. Скажи ещё раз.");
-  }).finally(() => {
-    micBusy = false;
-  });
-}
-
-async function startHearing() {
-  if (speaking || generating || voiceBlocked || micPaused) return;
-  const ready = await ensureMic();
-  if (!ready || !voiceOn() || micPaused || voiceBlocked || speaking) return;
-  hearing = true;
-  syncMic();
-  setVoicePhase("listen", "Слушаю");
+  try {
+    hearing = true;
+    recognition.start();
+    syncMic();
+    setVoicePhase("listen", "Слушаю");
+  } catch {
+    restartTimer = window.setTimeout(() => {
+      if (!voiceOn() || hearing || speaking || generating || voiceBlocked || micPaused) return;
+      try {
+        hearing = true;
+        recognition.start();
+        syncMic();
+        setVoicePhase("listen", "Слушаю");
+      } catch {
+        hearing = false;
+        syncMic();
+      }
+    }, 300);
+  }
 }
 
 function openVoice() {
   voiceBlocked = false;
   micPaused = false;
-  setVoicePhase("think", "Готовлю слух…");
-  startHearing().then(() => {
-    if (voiceOn() && !voiceBlocked) speakReply("Слушаю");
-  });
+  startHearing();
 }
 
 let speakGen = 0;
