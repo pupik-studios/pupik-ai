@@ -446,6 +446,7 @@ function topicLinks(question, answer) {
 function replyEmoji(question, hasImage) {
   const q = question.toLowerCase().replace(/ё/g, "е");
   if (hasImage || /фото|нарисуй/.test(q)) return "📸";
+  if (refusesCode(q)) return "💡";
   if (/програм|код|питон|python|функци/.test(q)) return "💻";
   if (/объясн|дроб|понят/.test(q)) return "📚";
   if (/котик|кот(?!ор)|кошк/.test(q)) return "🐱";
@@ -904,6 +905,7 @@ input, button {
 }
 
 function visualCodeAnswer(q) {
+  if (refusesCode(q)) return "";
   const visual = /визуал|visual code|scratch|блочн/.test(q);
   const rejectsPython = /не на питон|не питон|без питона|не python/.test(q);
   if (!visual && !rejectsPython) return "";
@@ -962,7 +964,22 @@ document.getElementById("ok").onclick = () => {
 Идея 2 — тренажёр слов, идея 3 — табло. Напиши номер.`);
 }
 
+function refusesCode(q) {
+  return /без програм|не програм|без кода|не надо код|без скрипт/.test(q);
+}
+
+function plainIdea() {
+  return named(`без программирования. Три идеи:
+
+1. Своя карта района: отметь 5 мест, куда хочется вернуться, и напиши почему.
+2. Разбор матча: три момента, которые решили игру, своими словами.
+3. Дневник на неделю: каждый день одно предложение, что получилось.
+
+Напиши тему, если нужна идея точнее: футбол, учёба, подарок или выходные.`);
+}
+
 function codeAnswer(q) {
+  if (refusesCode(q)) return "";
   const game = /игр/.test(q) && /питон|python|наивн|програм|напиш|код/.test(q);
   if (game) {
     return named(`вот наивная игра на Python — угадай число от 1 до 20.
@@ -987,7 +1004,7 @@ else:
 Нужна другая игра — напиши какая.`);
   }
 
-  const program = /програм|код|скрипт|питон|python|функци/.test(q) && /напиш|помог|сделай|создай|програм/.test(q);
+  const program = /програм|код|скрипт|питон|python|функци/.test(q) && /напиш|помог|сделай|создай|каркас/.test(q);
   if (program) {
     return named(`начнём с маленькой программы. Напиши, что она должна делать. Пока каркас на Python:
 
@@ -1278,6 +1295,8 @@ function localAnswer(question) {
   }
 
   if (agentOn() && wantsStudioGame(q)) return studioFiles();
+
+  if (refusesCode(q)) return plainIdea();
 
   const visual = visualCodeAnswer(q);
   if (visual) return visual;
