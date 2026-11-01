@@ -5,7 +5,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
   <title>Pupik AI</title>
-  <link rel="stylesheet" href="style.css?v=29">
+  <link rel="stylesheet" href="style.css?v=30">
 </head>
 <body>
 
@@ -124,10 +124,13 @@
         <button type="button" id="linksMode" class="agent-toggle" aria-pressed="false">Ссылки</button>
         <button type="button" id="voiceMode" class="agent-toggle" aria-pressed="false">Голос</button>
         <span id="agentHint" class="agent-hint">Обычный диалог</span>
+        <label class="voice-picker">
+          <select id="voicePicker" aria-label="Голос"></select>
+        </label>
         <label class="model-picker">
           <select id="modelPicker" aria-label="Модель">
             <option value="pupik">Pupik AI</option>
-            <option value="qwen3">Qwen 2.5 3B</option>
+            <option value="qwen3">Qwen3 4B</option>
             <option value="qwen15">Qwen 2.5 1.5B</option>
           </select>
         </label>
@@ -160,6 +163,6 @@
   <p id="voiceCaption" class="voice-caption">Слушаю</p>
 </div>
 
-<script type="module" src="app.js?v=69"></script>
+<script type="module" src="app.js?v=70"></script>
 </body>
 </html>

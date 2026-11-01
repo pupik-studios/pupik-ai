@@ -4,7 +4,7 @@ import { trySolve } from "./knowledge.js?v=20";
 
 const MODELS = [
   { id: "pupik", label: "Pupik AI", repo: "" },
-  { id: "qwen3", label: "Qwen 2.5 3B", repo: "onnx-community/Qwen2.5-3B-Instruct" },
+  { id: "qwen3", label: "Qwen3 4B", repo: "onnx-community/Qwen3-4B-Instruct-2507-ONNX" },
   { id: "qwen15", label: "Qwen 2.5 1.5B", repo: "onnx-community/Qwen2.5-1.5B-Instruct" }
 ];
 const MODEL_KEY = "pupik_model";
@@ -14,17 +14,19 @@ let ai = null;
 let aiRepo = "";
 let loadingPromise = null;
 let loadingRepo = "";
+let modelFailed = false;
 
 function currentModel() {
   return MODELS.find(item => item.id === modelId) || MODELS[1];
 }
 
 function systemPrompt() {
-  return `Ты — Pupik AI на модели Qwen.
+  return `Ты — Pupik AI на модели Qwen3.
 Создатель: Владимиров Роберт Павлович.
 Пользователя зовут ${userName || "друг"}.
 Отвечай на языке пользователя. Если вопрос по-русски, отвечай по-русски.
-Объясняй коротко и по делу. Не выдумывай факты. Не ставь оценки вопросам.`;
+Коротко и по делу. Если сравнивают двоих, сравни по конкретным параметрам и потом скажи, кто впереди и почему.
+Не выдумывай точные цифры. Не ставь оценки самому вопросу. Не пиши скрытые рассуждения.`;
 }
 
 function loadAI() {
@@ -33,8 +35,10 @@ function loadAI() {
   if (ai && aiRepo === repo) return Promise.resolve(ai);
   if (loadingPromise && loadingRepo === repo) return loadingPromise;
   loadingRepo = repo;
+  modelFailed = false;
   loadingPromise = (async () => {
     try {
+      if (agentHint && currentModel().repo === repo) agentHint.textContent = "Qwen3 грузится…";
       const { pipeline, env } = await import("https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1");
       env.useBrowserCache = true;
       env.allowLocalModels = false;
@@ -54,13 +58,18 @@ function loadAI() {
       if (currentModel().repo !== repo) return null;
       ai = ready;
       aiRepo = repo;
+      modelFailed = false;
       return ai;
     } catch (error) {
-      if (currentModel().repo === repo) ai = null;
+      if (currentModel().repo === repo) {
+        ai = null;
+        modelFailed = true;
+      }
       console.warn("Qwen не загрузился:", error);
       return null;
     } finally {
       if (loadingRepo === repo) loadingPromise = null;
+      if (currentModel().repo === repo) syncAgent();
     }
   })();
   return loadingPromise;
@@ -75,6 +84,8 @@ function withTimeout(promise, ms) {
 
 function cleanModelText(text) {
   const clean = String(text || "")
+    .replace(/<think>[\s\S]*?<\/think>/gi, "")
+    .replace(/<\/?think>/gi, "")
     .replace(/\u0000/g, "")
     .replace(/^[ \t]+/gm, "")
     .replace(/[ \t]{2,}/g, " ")
@@ -95,10 +106,16 @@ function extractAnswer(result) {
 
 async function qwenAnswer() {
   const repo = currentModel().repo;
-  if (!repo || !ai || aiRepo !== repo) {
-    if (canLoadModel() && !loadingPromise) loadAI();
-    return "";
+  if (!repo || !canLoadModel() || modelFailed) return "";
+  if (!ai || aiRepo !== repo) {
+    try {
+      await withTimeout(loadAI(), 120000);
+    } catch (error) {
+      console.warn("Qwen не дождался:", error);
+      return "";
+    }
   }
+  if (!ai || aiRepo !== repo) return "";
   try {
     const prompt = [
       { role: "system", content: systemPrompt() },
@@ -108,11 +125,12 @@ async function qwenAnswer() {
       }))
     ];
     const result = await withTimeout(ai(prompt, {
-      max_new_tokens: 180,
-      temperature: 0.6,
+      max_new_tokens: 220,
+      temperature: 0.7,
       do_sample: true,
-      top_p: 0.9,
-      repetition_penalty: 1.08
+      top_k: 20,
+      top_p: 0.8,
+      repetition_penalty: 1.05
     }), 45000);
     const clean = cleanModelText(extractAnswer(result));
     if (/не могу решить|теряюсь|превращен|тупост|какое-то странное|недоразумени/.test(clean.toLowerCase())) return "";
@@ -1507,7 +1525,12 @@ function windowAnswer(q) {
 function fallbackAnswer() {
   const name = userName || "";
   if (currentModel().id === "qwen3" && phoneScreen()) {
-    return `${name ? name + ", " : ""}Qwen 2.5 3B на телефоне не помещается. На компьютере в Chrome она отвечает, а здесь спроси факт, задачу или «нарисуй».`;
+    return `${name ? name + ", " : ""}Qwen3 на телефоне не помещается. На компьютере в Chrome она отвечает, а здесь спроси факт, задачу или «нарисуй».`;
+  }
+  if (currentModel().repo && canLoadModel() && (!ai || aiRepo !== currentModel().repo)) {
+    return named(modelFailed
+      ? "Qwen3 в этом окне не загрузилась. Открой страницу в Chrome."
+      : "Qwen3 ещё качается. Спроси этот вопрос ещё раз через минуту.");
   }
   return `${name ? name + ", я" : "Я"} на связи. Могу написать программу, разобрать задачу, рассказать факт или нарисовать.`;
 }
@@ -1753,6 +1776,8 @@ const emojiMode = document.getElementById("emojiMode");
 const linksMode = document.getElementById("linksMode");
 const voiceMode = document.getElementById("voiceMode");
 const modelPicker = document.getElementById("modelPicker");
+const voicePicker = document.getElementById("voicePicker");
+const VOICE_URI_KEY = "pupik_voice_uri";
 const micButton = document.getElementById("micButton");
 const agentHint = document.getElementById("agentHint");
 const VOICE_KEY = "pupik_voice";
@@ -1790,10 +1815,43 @@ function setVoicePhase(phase, caption) {
   if (caption && cap) cap.textContent = caption;
 }
 
-function russianVoice() {
+function voiceList() {
   const voices = window.speechSynthesis?.getVoices() || [];
-  return voices.find(item => /milena|katya|irina/i.test(item.name))
-    || voices.find(item => /^ru/i.test(item.lang));
+  const rank = voice => /^ru/i.test(voice.lang) ? 0 : 1;
+  return [...voices].sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name, "ru"));
+}
+
+function fillVoices() {
+  if (!voicePicker) return;
+  const voices = voiceList();
+  const saved = localStorage.getItem(VOICE_URI_KEY) || "";
+  const current = voicePicker.value;
+  voicePicker.replaceChildren();
+  const auto = document.createElement("option");
+  auto.value = "";
+  auto.textContent = "Голос: авто";
+  voicePicker.append(auto);
+  for (const voice of voices) {
+    const option = document.createElement("option");
+    option.value = voice.voiceURI;
+    const lang = (voice.lang || "").replace("_", "-");
+    option.textContent = lang ? `${voice.name} · ${lang}` : voice.name;
+    voicePicker.append(option);
+  }
+  const pick = voices.some(voice => voice.voiceURI === saved) ? saved : current;
+  voicePicker.value = voices.some(voice => voice.voiceURI === pick) ? pick : "";
+}
+
+function russianVoice() {
+  const voices = voiceList();
+  const saved = voicePicker?.value || localStorage.getItem(VOICE_URI_KEY) || "";
+  if (saved) {
+    const picked = voices.find(voice => voice.voiceURI === saved);
+    if (picked) return picked;
+  }
+  return voices.find(voice => /milena|katya|irina|yuri|milena/i.test(voice.name))
+    || voices.find(voice => /^ru/i.test(voice.lang))
+    || null;
 }
 
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -1913,7 +1971,10 @@ function speakReply(text) {
   utter.lang = "ru-RU";
   utter.rate = 1;
   const picked = russianVoice();
-  if (picked) utter.voice = picked;
+  if (picked) {
+    utter.voice = picked;
+    utter.lang = picked.lang || "ru-RU";
+  }
   utter.onend = () => finishSpeaking(gen);
   utter.onerror = () => finishSpeaking(gen);
   const say = () => {
@@ -1937,6 +1998,7 @@ function chooseModel(id) {
   aiRepo = "";
   loadingPromise = null;
   loadingRepo = "";
+  modelFailed = false;
   if (canLoadModel()) loadAI();
   syncAgent();
 }
@@ -1996,6 +2058,11 @@ document.getElementById("voiceOrb")?.addEventListener("click", () => {
   startHearing();
 });
 modelPicker?.addEventListener("change", () => chooseModel(modelPicker.value));
+voicePicker?.addEventListener("change", () => {
+  localStorage.setItem(VOICE_URI_KEY, voicePicker.value || "");
+});
+fillVoices();
+window.speechSynthesis?.addEventListener("voiceschanged", fillVoices);
 micButton?.addEventListener("click", () => {
   if (hearing) {
     micPaused = true;
