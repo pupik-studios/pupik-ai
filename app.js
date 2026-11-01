@@ -2,9 +2,22 @@
 import { generateImage, wantsImage, extractImagePrompt, photoSubjects } from "./generate.js?v=35";
 import { trySolve } from "./knowledge.js?v=20";
 
-const MODEL = "onnx-community/Qwen2.5-3B-Instruct";
+const MODELS = [
+  { id: "pupik", label: "Pupik AI", repo: "" },
+  { id: "qwen3", label: "Qwen 2.5 3B", repo: "onnx-community/Qwen2.5-3B-Instruct" },
+  { id: "qwen15", label: "Qwen 2.5 1.5B", repo: "onnx-community/Qwen2.5-1.5B-Instruct" }
+];
+const MODEL_KEY = "pupik_model";
+let modelId = localStorage.getItem(MODEL_KEY) || "qwen3";
+if (!MODELS.some(item => item.id === modelId)) modelId = "qwen3";
 let ai = null;
+let aiRepo = "";
 let loadingPromise = null;
+let loadingRepo = "";
+
+function currentModel() {
+  return MODELS.find(item => item.id === modelId) || MODELS[1];
+}
 
 function systemPrompt() {
   return `Ты — Pupik AI на модели Qwen.
@@ -15,32 +28,39 @@ function systemPrompt() {
 }
 
 function loadAI() {
-  if (ai) return Promise.resolve(ai);
-  if (loadingPromise) return loadingPromise;
+  const repo = currentModel().repo;
+  if (!repo) return Promise.resolve(null);
+  if (ai && aiRepo === repo) return Promise.resolve(ai);
+  if (loadingPromise && loadingRepo === repo) return loadingPromise;
+  loadingRepo = repo;
   loadingPromise = (async () => {
     try {
       const { pipeline, env } = await import("https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1");
       env.useBrowserCache = true;
       env.allowLocalModels = false;
-      const load = (device, dtype) => pipeline("text-generation", MODEL, {
+      const load = (device, dtype) => pipeline("text-generation", repo, {
         dtype,
         device,
         progress_callback: () => {}
       });
+      let ready;
       try {
-        ai = navigator.gpu ? await load("webgpu", "q4f16") : await load("wasm", "q4");
+        ready = navigator.gpu ? await load("webgpu", "q4f16") : await load("wasm", "q4");
       } catch (error) {
         if (!navigator.gpu) throw error;
         console.warn("WebGPU не вышел, беру wasm:", error);
-        ai = await load("wasm", "q4");
+        ready = await load("wasm", "q4");
       }
+      if (currentModel().repo !== repo) return null;
+      ai = ready;
+      aiRepo = repo;
       return ai;
     } catch (error) {
-      ai = null;
+      if (currentModel().repo === repo) ai = null;
       console.warn("Qwen не загрузился:", error);
       return null;
     } finally {
-      loadingPromise = null;
+      if (loadingRepo === repo) loadingPromise = null;
     }
   })();
   return loadingPromise;
@@ -74,7 +94,11 @@ function extractAnswer(result) {
 }
 
 async function qwenAnswer() {
-  if (!ai) return "";
+  const repo = currentModel().repo;
+  if (!repo || !ai || aiRepo !== repo) {
+    if (repo && !loadingPromise) loadAI();
+    return "";
+  }
   try {
     const prompt = [
       { role: "system", content: systemPrompt() },
@@ -665,7 +689,7 @@ function showApp() {
 }
 
 function afterBoot() {
-  loadAI();
+  if (currentModel().repo) loadAI();
   if (!userName) {
     if (boot) boot.hidden = true;
     if (register) {
@@ -1608,6 +1632,7 @@ async function sendMessage(text) {
     });
 
     addMessageToScreen("assistant", answer, image);
+    speakReply(answer);
     if (job) showPermission(job);
     saveCurrentChat();
 
@@ -1692,7 +1717,111 @@ applyName();
 
 const emojiMode = document.getElementById("emojiMode");
 const linksMode = document.getElementById("linksMode");
+const voiceMode = document.getElementById("voiceMode");
+const modelPicker = document.getElementById("modelPicker");
+const micButton = document.getElementById("micButton");
 const agentHint = document.getElementById("agentHint");
+const VOICE_KEY = "pupik_voice";
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+let recognition = null;
+let hearing = false;
+let speaking = false;
+let heardSomething = false;
+let voiceBlocked = false;
+let micPaused = false;
+
+function voiceOn() {
+  return flagOn(VOICE_KEY, false);
+}
+
+function spokenText(text) {
+  return String(text || "")
+    .replace(/https?:\/\/\S+/g, "")
+    .replace(/\p{Extended_Pictographic}/gu, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 420);
+}
+
+function syncMic() {
+  micButton?.classList.toggle("hearing", hearing);
+  micButton?.setAttribute("aria-pressed", hearing ? "true" : "false");
+}
+
+function stopHearing() {
+  hearing = false;
+  try { recognition?.stop(); } catch { /* already stopped */ }
+  syncMic();
+}
+
+function startHearing() {
+  if (!SpeechRecognition || speaking || generating || voiceBlocked) return;
+  if (!recognition) {
+    recognition = new SpeechRecognition();
+    recognition.lang = "ru-RU";
+    recognition.interimResults = false;
+    recognition.continuous = false;
+    recognition.onresult = event => {
+      const said = event.results?.[0]?.[0]?.transcript?.trim() || "";
+      if (!said) return;
+      heardSomething = true;
+      stopHearing();
+      sendMessage(said);
+    };
+    recognition.onerror = event => {
+      if (event.error === "not-allowed" || event.error === "service-not-allowed") voiceBlocked = true;
+      hearing = false;
+      syncMic();
+    };
+    recognition.onend = () => {
+      hearing = false;
+      syncMic();
+      if (voiceOn() && !micPaused && !voiceBlocked && !speaking && !generating && !heardSomething) startHearing();
+      heardSomething = false;
+    };
+  }
+  try {
+    hearing = true;
+    recognition.start();
+    syncMic();
+  } catch {
+    hearing = false;
+    syncMic();
+  }
+}
+
+function speakReply(text) {
+  const plain = spokenText(text);
+  if (!voiceOn() || !plain || !window.speechSynthesis) return;
+  stopHearing();
+  window.speechSynthesis.cancel();
+  const utter = new SpeechSynthesisUtterance(plain);
+  utter.lang = "ru-RU";
+  utter.rate = 1;
+  const voice = window.speechSynthesis.getVoices().find(item => /^ru/i.test(item.lang));
+  if (voice) utter.voice = voice;
+  speaking = true;
+  utter.onend = () => {
+    speaking = false;
+    if (voiceOn() && !micPaused) startHearing();
+  };
+  utter.onerror = () => {
+    speaking = false;
+  };
+  window.speechSynthesis.speak(utter);
+}
+
+function chooseModel(id) {
+  if (!MODELS.some(item => item.id === id) || id === modelId) return;
+  modelId = id;
+  localStorage.setItem(MODEL_KEY, id);
+  ai = null;
+  aiRepo = "";
+  loadingPromise = null;
+  loadingRepo = "";
+  if (currentModel().repo) loadAI();
+  syncAgent();
+}
 
 function syncTool(button, on) {
   button?.classList.toggle("active", on);
@@ -1702,11 +1831,14 @@ function syncTool(button, on) {
 function syncAgent() {
   syncTool(emojiMode, emojiOn());
   syncTool(linksMode, linksOn());
+  syncTool(voiceMode, voiceOn());
+  if (modelPicker) modelPicker.value = currentModel().id;
   const notes = [];
   if (emojiOn()) notes.push("смайлики");
   if (linksOn()) notes.push("ссылки");
-  if (agentHint) agentHint.textContent = notes.length ? notes.join(" · ") : "Обычный диалог";
-  if (input) input.placeholder = "Напиши сообщение Pupik AI...";
+  if (voiceOn()) notes.push(voiceBlocked || !SpeechRecognition ? "голос без микрофона" : "голос");
+  if (agentHint) agentHint.textContent = notes.length ? notes.join(" · ") : currentModel().label;
+  if (input) input.placeholder = voiceOn() ? "Скажи или напиши сообщение..." : "Напиши сообщение Pupik AI...";
 }
 
 function toggleFlag(key, read) {
@@ -1716,6 +1848,31 @@ function toggleFlag(key, read) {
 
 emojiMode?.addEventListener("click", () => toggleFlag(EMOJI_KEY, emojiOn));
 linksMode?.addEventListener("click", () => toggleFlag(LINKS_KEY, linksOn));
+voiceMode?.addEventListener("click", () => {
+  const next = !voiceOn();
+  localStorage.setItem(VOICE_KEY, next ? "1" : "0");
+  if (!next) {
+    voiceBlocked = false;
+    micPaused = true;
+    speaking = false;
+    window.speechSynthesis?.cancel();
+    stopHearing();
+  } else {
+    micPaused = false;
+  }
+  syncAgent();
+  if (next) startHearing();
+});
+modelPicker?.addEventListener("change", () => chooseModel(modelPicker.value));
+micButton?.addEventListener("click", () => {
+  if (hearing) {
+    micPaused = true;
+    stopHearing();
+  } else {
+    micPaused = false;
+    startHearing();
+  }
+});
 
 syncAgent();
 
