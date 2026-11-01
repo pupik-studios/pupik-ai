@@ -320,14 +320,14 @@ function renderMessages() {
   // Начальный экран показывается только в пустом чате
   welcome.style.display = chatHistory.length ? "none" : "flex";
 
-  chatHistory.forEach(message => {
-    addMessageToScreen(message.role, message.content, message.image);
+  chatHistory.forEach((message, index) => {
+    addMessageToScreen(message.role, message.content, message.image, index);
   });
 
   messagesElement.scrollTop = messagesElement.scrollHeight;
 }
 
-function addMessageToScreen(role, content, image) {
+function addMessageToScreen(role, content, image, index) {
   const message = document.createElement("div");
   message.className = "message " +
     (role === "user" ? "user-message" : "ai-message");
@@ -350,6 +350,14 @@ function addMessageToScreen(role, content, image) {
     text.className = "message-text";
     fillMessage(text, content);
     body.appendChild(text);
+    if (role === "assistant" && typeof index === "number") {
+      const edit = document.createElement("button");
+      edit.type = "button";
+      edit.className = "message-edit";
+      edit.textContent = "Править";
+      edit.addEventListener("click", () => beginEdit(index, text, edit));
+      body.appendChild(edit);
+    }
   }
 
   if (image) {
@@ -738,6 +746,84 @@ function loadNotes() {
   } catch {
     return [];
   }
+}
+
+const CORRECT_KEY = "pupik_corrections";
+
+function normQuestion(text) {
+  return String(text || "")
+    .toLowerCase()
+    .replace(/ё/g, "е")
+    .replace(/[^\p{L}\p{N}\s]+/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function loadCorrections() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(CORRECT_KEY) || "[]");
+    return Array.isArray(saved) ? saved.filter(item => item && item.q && item.a) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveCorrection(question, answer) {
+  const q = normQuestion(question);
+  if (!q || !answer) return;
+  const items = loadCorrections().filter(item => item.q !== q);
+  items.unshift({ q, a: answer });
+  localStorage.setItem(CORRECT_KEY, JSON.stringify(items.slice(0, 40)));
+}
+
+function correctedAnswer(question) {
+  const q = normQuestion(question);
+  if (!q) return "";
+  return loadCorrections().find(item => item.q === q)?.a || "";
+}
+
+function questionBefore(index) {
+  for (let i = index - 1; i >= 0; i -= 1) {
+    if (chatHistory[i]?.role === "user") return chatHistory[i].content || "";
+  }
+  return "";
+}
+
+function beginEdit(index, textNode, button) {
+  if (generating || !chatHistory[index]) return;
+  const original = chatHistory[index].content || "";
+  const draft = document.createElement("textarea");
+  draft.className = "message-draft";
+  draft.value = original;
+  const actions = document.createElement("div");
+  actions.className = "message-edit-actions";
+  const save = document.createElement("button");
+  save.type = "button";
+  save.className = "message-save";
+  save.textContent = "Сохранить";
+  const cancel = document.createElement("button");
+  cancel.type = "button";
+  cancel.className = "message-cancel";
+  cancel.textContent = "Отмена";
+  save.addEventListener("click", () => {
+    const next = draft.value.trim();
+    if (!next || next === original) {
+      renderMessages();
+      return;
+    }
+    chatHistory[index].content = next;
+    const question = questionBefore(index);
+    if (question) saveCorrection(question, next);
+    saveCurrentChat();
+    renderMessages();
+    if (voiceOn()) speakReply(next);
+  });
+  cancel.addEventListener("click", () => renderMessages());
+  textNode.replaceWith(draft);
+  actions.append(save, cancel);
+  draft.after(actions);
+  button.remove();
+  draft.focus();
 }
 
 function remember(note) {
@@ -1473,7 +1559,7 @@ function showPermission(task) {
       card.remove();
       const done = `Готово, папка «${projectDirectory.name}».\n${text.slice(0, 4000)}`;
       chatHistory.push({ role: "assistant", content: done });
-      addMessageToScreen("assistant", done);
+      addMessageToScreen("assistant", done, "", chatHistory.length - 1);
       saveCurrentChat();
     } catch (error) {
       approve.disabled = false;
@@ -1486,7 +1572,7 @@ function showPermission(task) {
     card.remove();
     const done = "Действие отклонено. Файлы не открывал.";
     chatHistory.push({ role: "assistant", content: done });
-    addMessageToScreen("assistant", done);
+    addMessageToScreen("assistant", done, "", chatHistory.length - 1);
     saveCurrentChat();
   });
   actions.append(approve, reject);
@@ -1627,10 +1713,13 @@ async function sendMessage(text) {
     let answer = "";
     let image = "";
 
-    const follow = imageFollowUp(question);
-    const job = computerTask(question);
-    const official = (!job && !(wantsImage(question) || follow)) ? await answerOfficialLink(question) : "";
-    if (official) {
+    const fixed = correctedAnswer(question);
+    const follow = fixed ? "" : imageFollowUp(question);
+    const job = fixed ? null : computerTask(question);
+    const official = fixed || job || wantsImage(question) || follow ? "" : await answerOfficialLink(question);
+    if (fixed) {
+      answer = fixed;
+    } else if (official) {
       answer = official;
     } else if (job) {
       answer = computerReply(job);
@@ -1676,9 +1765,11 @@ async function sendMessage(text) {
       }
     }
 
-    if (!answer && !image) answer = await qwenAnswer();
-    if (!answer && !image) answer = fallbackAnswer();
-    answer = decorateReply(question, asAgent(question, answer), Boolean(image));
+    if (!fixed) {
+      if (!answer && !image) answer = await qwenAnswer();
+      if (!answer && !image) answer = fallbackAnswer();
+      answer = decorateReply(question, asAgent(question, answer), Boolean(image));
+    }
 
     removeTyping();
 
@@ -1688,7 +1779,7 @@ async function sendMessage(text) {
       image
     });
 
-    addMessageToScreen("assistant", answer, image);
+    addMessageToScreen("assistant", answer, image, chatHistory.length - 1);
     speakReply(answer);
     if (job) showPermission(job);
     saveCurrentChat();
@@ -1702,7 +1793,7 @@ async function sendMessage(text) {
       role: "assistant",
       content: errorMessage
     });
-    addMessageToScreen("assistant", errorMessage);
+    addMessageToScreen("assistant", errorMessage, "", chatHistory.length - 1);
     saveCurrentChat();
   } finally {
     generating = false;
