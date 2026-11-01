@@ -1919,6 +1919,7 @@ voiceMode?.addEventListener("click", () => {
     stopHearing();
   } else {
     micPaused = false;
+    voiceBlocked = false;
   }
   syncAgent();
   if (next) speakReply("Слушаю");
@@ -1928,6 +1929,7 @@ document.getElementById("voiceOrb")?.addEventListener("click", () => {
   speakGen += 1;
   speaking = false;
   micPaused = false;
+  voiceBlocked = false;
   window.speechSynthesis?.cancel();
   setVoicePhase("listen", "Слушаю");
   startHearing();
@@ -1939,6 +1941,7 @@ micButton?.addEventListener("click", () => {
     stopHearing();
   } else {
     micPaused = false;
+    voiceBlocked = false;
     if (!voiceOn()) {
       localStorage.setItem(VOICE_KEY, "1");
       micPaused = false;
