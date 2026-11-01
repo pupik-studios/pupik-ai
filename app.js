@@ -1795,6 +1795,10 @@ function spokenText(text) {
   return String(text || "")
     .replace(/https?:\/\/\S+/g, "")
     .replace(/\p{Extended_Pictographic}/gu, "")
+    .replace(/```[\s\S]*?```/g, "")
+    .replace(/[`*_#]/g, "")
+    .replace(/\s*\n+\s*/g, ". ")
+    .replace(/[^\p{L}\p{N}\s.,!?…:;«»"-]/gu, " ")
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, 420);
@@ -1815,43 +1819,40 @@ function setVoicePhase(phase, caption) {
   if (caption && cap) cap.textContent = caption;
 }
 
-function voiceList() {
+function russianVoices() {
   const voices = window.speechSynthesis?.getVoices() || [];
-  const rank = voice => /^ru/i.test(voice.lang) ? 0 : 1;
-  return [...voices].sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name, "ru"));
+  return voices
+    .filter(voice => /^ru/i.test(voice.lang || ""))
+    .sort((a, b) => a.name.localeCompare(b.name, "ru"));
 }
 
 function fillVoices() {
   if (!voicePicker) return;
-  const voices = voiceList();
+  const voices = russianVoices();
   const saved = localStorage.getItem(VOICE_URI_KEY) || "";
-  const current = voicePicker.value;
   voicePicker.replaceChildren();
-  const auto = document.createElement("option");
-  auto.value = "";
-  auto.textContent = "Голос: авто";
-  voicePicker.append(auto);
+  if (!voices.length) {
+    const empty = document.createElement("option");
+    empty.value = "";
+    empty.textContent = "Нет русского голоса";
+    voicePicker.append(empty);
+    return;
+  }
   for (const voice of voices) {
     const option = document.createElement("option");
     option.value = voice.voiceURI;
-    const lang = (voice.lang || "").replace("_", "-");
-    option.textContent = lang ? `${voice.name} · ${lang}` : voice.name;
+    option.textContent = voice.name;
     voicePicker.append(option);
   }
-  const pick = voices.some(voice => voice.voiceURI === saved) ? saved : current;
-  voicePicker.value = voices.some(voice => voice.voiceURI === pick) ? pick : "";
+  const pick = voices.some(voice => voice.voiceURI === saved) ? saved : voices[0].voiceURI;
+  voicePicker.value = pick;
+  localStorage.setItem(VOICE_URI_KEY, pick);
 }
 
 function russianVoice() {
-  const voices = voiceList();
+  const voices = russianVoices();
   const saved = voicePicker?.value || localStorage.getItem(VOICE_URI_KEY) || "";
-  if (saved) {
-    const picked = voices.find(voice => voice.voiceURI === saved);
-    if (picked) return picked;
-  }
-  return voices.find(voice => /milena|katya|irina|yuri|milena/i.test(voice.name))
-    || voices.find(voice => /^ru/i.test(voice.lang))
-    || null;
+  return voices.find(voice => voice.voiceURI === saved) || voices[0] || null;
 }
 
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -1967,14 +1968,18 @@ function speakReply(text) {
   speaking = true;
   lastSpoken = plain;
   setVoicePhase("speak", plain);
+  const picked = russianVoice();
+  if (!picked) {
+    speaking = false;
+    setVoicePhase("listen", "Русского голоса нет, ответ остаётся текстом.");
+    if (voiceOn() && !micPaused) window.setTimeout(() => startHearing(), 350);
+    return;
+  }
   const utter = new SpeechSynthesisUtterance(plain);
+  utter.voice = picked;
   utter.lang = "ru-RU";
   utter.rate = 1;
-  const picked = russianVoice();
-  if (picked) {
-    utter.voice = picked;
-    utter.lang = picked.lang || "ru-RU";
-  }
+  utter.pitch = 1;
   utter.onend = () => finishSpeaking(gen);
   utter.onerror = () => finishSpeaking(gen);
   const say = () => {
