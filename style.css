@@ -589,6 +589,145 @@ button {
   background: #8d3a3a;
 }
 
+.voice-stage {
+  position: fixed;
+  z-index: 40;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 28px;
+  padding: calc(24px + env(safe-area-inset-top)) 24px calc(24px + env(safe-area-inset-bottom));
+  background:
+    radial-gradient(circle at 50% 42%, rgba(88, 108, 196, .45), transparent 34%),
+    radial-gradient(circle at 50% 48%, #141624 0%, #07080d 68%);
+}
+
+.voice-stage[hidden] {
+  display: none;
+}
+
+.voice-close {
+  position: absolute;
+  top: calc(18px + env(safe-area-inset-top));
+  left: 18px;
+  width: 44px;
+  height: 44px;
+  border: 1px solid #45465a;
+  border-radius: 50%;
+  background: rgba(20, 21, 32, .8);
+  color: #eee;
+  font-size: 28px;
+  line-height: 1;
+}
+
+.voice-orb {
+  position: relative;
+  width: min(250px, 64vw);
+  height: min(250px, 64vw);
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  overflow: hidden;
+  background: #10121c;
+  box-shadow:
+    0 0 30px rgba(198, 214, 255, .45),
+    0 0 90px rgba(124, 146, 255, .35),
+    inset 0 0 40px rgba(255, 255, 255, .18);
+  animation: orbDrift 6.5s ease-in-out infinite;
+  cursor: pointer;
+}
+
+.voice-orb span {
+  position: absolute;
+  width: 78%;
+  height: 78%;
+  border-radius: 50%;
+  filter: blur(16px);
+}
+
+.voice-orb span:nth-child(1) {
+  left: -8%;
+  top: -6%;
+  background: #f4f7ff;
+  animation: blobA 3.6s ease-in-out infinite;
+}
+
+.voice-orb span:nth-child(2) {
+  right: -14%;
+  top: 8%;
+  background: #8eb6ff;
+  animation: blobB 4.4s ease-in-out infinite;
+}
+
+.voice-orb span:nth-child(3) {
+  left: 8%;
+  bottom: -18%;
+  background: #b9a6ff;
+  animation: blobC 5s ease-in-out infinite;
+}
+
+.voice-orb span:nth-child(4) {
+  left: 28%;
+  top: 26%;
+  width: 46%;
+  height: 46%;
+  background: #ffffff;
+  animation: blobD 2.8s ease-in-out infinite;
+}
+
+.voice-orb[data-phase="think"] {
+  animation-duration: 4.2s;
+}
+
+.voice-orb[data-phase="speak"] {
+  animation-duration: 2.6s;
+  box-shadow:
+    0 0 46px rgba(226, 236, 255, .8),
+    0 0 130px rgba(156, 176, 255, .55),
+    inset 0 0 50px rgba(255, 255, 255, .28);
+}
+
+.voice-orb[data-phase="speak"] span {
+  animation-duration: 1.7s;
+}
+
+.voice-caption {
+  max-width: min(520px, 88vw);
+  margin: 0;
+  color: #f2f4ff;
+  font-size: 18px;
+  line-height: 1.45;
+  text-align: center;
+}
+
+@keyframes orbDrift {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  35% { transform: translate3d(16px, -22px, 0) scale(1.05); }
+  70% { transform: translate3d(-14px, 12px, 0) scale(.97); }
+}
+
+@keyframes blobA {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(36px, 28px, 0) scale(1.25); }
+}
+
+@keyframes blobB {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1.05); }
+  50% { transform: translate3d(-32px, 22px, 0) scale(.85); }
+}
+
+@keyframes blobC {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50% { transform: translate3d(20px, -34px, 0) scale(1.2); }
+}
+
+@keyframes blobD {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(.9); opacity: .85; }
+  50% { transform: translate3d(-16px, 18px, 0) scale(1.15); opacity: 1; }
+}
+
 .agent-card {
   margin: 4px 0 8px 48px;
   padding: 14px;

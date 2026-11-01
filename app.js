@@ -1556,6 +1556,7 @@ async function sendMessage(text) {
   }
 
   generating = true;
+  if (voiceOn()) setVoicePhase("think", "Думаю");
   sendButton.disabled = true;
   input.disabled = true;
 
@@ -1748,6 +1749,22 @@ function syncMic() {
   micButton?.setAttribute("aria-pressed", hearing ? "true" : "false");
 }
 
+function setVoicePhase(phase, caption) {
+  const stage = document.getElementById("voiceStage");
+  const orb = document.getElementById("voiceOrb");
+  const cap = document.getElementById("voiceCaption");
+  if (!stage) return;
+  stage.hidden = !voiceOn();
+  if (orb) orb.dataset.phase = phase;
+  if (caption && cap) cap.textContent = caption;
+}
+
+function russianVoice() {
+  const voices = window.speechSynthesis?.getVoices() || [];
+  return voices.find(item => /milena|katya|irina/i.test(item.name))
+    || voices.find(item => /^ru/i.test(item.lang));
+}
+
 function stopHearing() {
   hearing = false;
   try { recognition?.stop(); } catch { /* already stopped */ }
@@ -1784,6 +1801,7 @@ function startHearing() {
     hearing = true;
     recognition.start();
     syncMic();
+    setVoicePhase("listen", "Слушаю");
   } catch {
     hearing = false;
     syncMic();
@@ -1798,15 +1816,19 @@ function speakReply(text) {
   const utter = new SpeechSynthesisUtterance(plain);
   utter.lang = "ru-RU";
   utter.rate = 1;
-  const voice = window.speechSynthesis.getVoices().find(item => /^ru/i.test(item.lang));
-  if (voice) utter.voice = voice;
+  const picked = russianVoice();
+  if (picked) utter.voice = picked;
+  utter.pitch = 1.05;
   speaking = true;
+  setVoicePhase("speak", plain);
   utter.onend = () => {
     speaking = false;
+    setVoicePhase("listen", "Слушаю");
     if (voiceOn() && !micPaused) startHearing();
   };
   utter.onerror = () => {
     speaking = false;
+    setVoicePhase("listen", "Слушаю");
   };
   window.speechSynthesis.speak(utter);
 }
@@ -1839,6 +1861,8 @@ function syncAgent() {
   if (voiceOn()) notes.push(voiceBlocked || !SpeechRecognition ? "голос без микрофона" : "голос");
   if (agentHint) agentHint.textContent = notes.length ? notes.join(" · ") : currentModel().label;
   if (input) input.placeholder = voiceOn() ? "Скажи или напиши сообщение..." : "Напиши сообщение Pupik AI...";
+  if (!voiceOn()) setVoicePhase("listen", "Слушаю");
+  else if (!speaking && !generating) setVoicePhase("listen", "Слушаю");
 }
 
 function toggleFlag(key, read) {
@@ -1861,7 +1885,18 @@ voiceMode?.addEventListener("click", () => {
     micPaused = false;
   }
   syncAgent();
-  if (next) startHearing();
+  if (next) {
+    setVoicePhase("listen", "Слушаю");
+    startHearing();
+  }
+});
+document.getElementById("voiceClose")?.addEventListener("click", () => voiceMode?.click());
+document.getElementById("voiceOrb")?.addEventListener("click", () => {
+  window.speechSynthesis?.cancel();
+  speaking = false;
+  micPaused = false;
+  setVoicePhase("listen", "Слушаю");
+  startHearing();
 });
 modelPicker?.addEventListener("change", () => chooseModel(modelPicker.value));
 micButton?.addEventListener("click", () => {
