@@ -36,6 +36,7 @@ function loadAI() {
   if (loadingPromise && loadingRepo === repo) return loadingPromise;
   loadingRepo = repo;
   modelFailed = false;
+  sawFileProgress = false;
   loadMoved = Date.now();
   loadingPromise = (async () => {
     try {
@@ -105,16 +106,27 @@ function extractAnswer(result) {
   return "";
 }
 
+async function waitForModel() {
+  const repo = currentModel().repo;
+  if (ai && aiRepo === repo) return true;
+  if (!loadingPromise) loadAI();
+  const started = Date.now();
+  while ((!ai || aiRepo !== repo) && !modelFailed && Date.now() - started < 180000) {
+    if (modelStalled()) {
+      modelFailed = true;
+      break;
+    }
+    await new Promise(resolve => setTimeout(resolve, 400));
+  }
+  return Boolean(ai && aiRepo === repo);
+}
+
 async function qwenAnswer() {
   const repo = currentModel().repo;
   if (!repo || !canLoadModel() || modelFailed) return "";
   if (!ai || aiRepo !== repo) {
-    if (modelStalled()) {
-      modelFailed = true;
-      return "";
-    }
-    if (!loadingPromise) loadAI();
-    return "";
+    const ready = await waitForModel();
+    if (!ready) return "";
   }
   try {
     const prompt = [
@@ -137,11 +149,6 @@ async function qwenAnswer() {
     return clean;
   } catch (error) {
     console.warn("Qwen не успел:", error);
-    if (String(error?.message || error).includes("timeout")) {
-      modelFailed = true;
-      ai = null;
-      aiRepo = "";
-    }
     return "";
   }
 }
@@ -510,9 +517,10 @@ function decorateReply(question, answer, hasImage) {
 let progressTimer = 0;
 let progressValue = 0;
 let loadMoved = 0;
+let sawFileProgress = false;
 const fileProgress = new Map();
 
-function showProgress(percent) {
+function showProgress(percent, caption) {
   let box = document.getElementById("typing");
   if (!box) {
     box = document.createElement("div");
@@ -522,35 +530,38 @@ function showProgress(percent) {
     messagesElement.appendChild(box);
   }
   const value = Math.max(4, Math.min(100, percent));
+  const text = caption || `${Math.round(value)}%`;
   const bar = box.querySelector(".progress-bar");
   const label = box.querySelector(".progress-label");
   if (bar) bar.style.width = `${value}%`;
-  if (label) label.textContent = `${Math.round(value)}%`;
+  if (label) label.textContent = text;
   messagesElement.scrollTop = messagesElement.scrollHeight;
-  if (voiceOn()) setVoicePhase("think", `${Math.round(value)}%`);
+  if (voiceOn()) setVoicePhase("think", text);
 }
 
 function startAnswerProgress() {
   window.clearInterval(progressTimer);
   fileProgress.clear();
   progressValue = 8;
-  showProgress(progressValue);
+  showProgress(progressValue, "Качаю Qwen3");
   progressTimer = window.setInterval(() => {
-    if (progressValue >= 99) return;
-    progressValue = Math.min(99, progressValue + (progressValue < 70 ? 4 : 0.6));
-    showProgress(progressValue);
-  }, 400);
+    if (sawFileProgress || progressValue >= 18) return;
+    progressValue = Math.min(18, progressValue + 2);
+    showProgress(progressValue, "Качаю Qwen3");
+  }, 500);
 }
 
 function modelStalled() {
   if (ai && aiRepo === currentModel().repo) return false;
   if (!loadingPromise || !loadMoved) return false;
-  return Date.now() - loadMoved > 12000;
+  const quiet = Date.now() - loadMoved;
+  return sawFileProgress ? quiet > 20000 : quiet > 45000;
 }
 
 function noteModelProgress(info) {
   if (info && (info.status === "progress" || info.status === "done" || typeof info.progress === "number")) {
     loadMoved = Date.now();
+    sawFileProgress = true;
   }
   if (!generating || !info) return;
   const name = info.file || "model";
@@ -560,9 +571,7 @@ function noteModelProgress(info) {
   const values = [...fileProgress.values()];
   if (!values.length) return;
   const average = values.reduce((sum, item) => sum + item, 0) / values.length;
-  const next = Math.max(progressValue, Math.min(92, average));
-  if (next <= progressValue) return;
-  progressValue = next;
+  progressValue = Math.max(4, Math.min(99, average));
   showProgress(progressValue);
 }
 
@@ -1647,11 +1656,11 @@ function windowAnswer(q) {
 
 function fallbackAnswer() {
   const name = userName || "";
-  if (currentModel().id === "qwen3" && (phoneScreen() || safariBrowser() || modelFailed)) {
+  if (currentModel().id === "qwen3" && (phoneScreen() || safariBrowser())) {
     return `${name ? name + ", " : ""}Qwen3 в этом окне не запускается. Открой страницу в Chrome на компьютере.`;
   }
   if (currentModel().repo && canLoadModel() && (!ai || aiRepo !== currentModel().repo)) {
-    return named("этот вопрос пока без большой модели. Спроси факт, задачу или «нарисуй».");
+    return named("модель не скачалась. Проверь интернет и спроси этот вопрос ещё раз.");
   }
   return `${name ? name + ", я" : "Я"} на связи. Могу написать программу, разобрать задачу, рассказать факт или нарисовать.`;
 }
