@@ -45,7 +45,7 @@ function loadAI() {
       const load = (device, dtype) => pipeline("text-generation", repo, {
         dtype,
         device,
-        progress_callback: () => {}
+        progress_callback: info => noteModelProgress(info)
       });
       let ready;
       try {
@@ -502,18 +502,62 @@ function decorateReply(question, answer, hasImage) {
   return text;
 }
 
+let progressTimer = 0;
+let progressValue = 0;
+const fileProgress = new Map();
+
+function showProgress(percent) {
+  let box = document.getElementById("typing");
+  if (!box) {
+    box = document.createElement("div");
+    box.className = "typing";
+    box.id = "typing";
+    box.innerHTML = '<div class="progress-label"></div><div class="progress-track"><div class="progress-bar"></div></div>';
+    messagesElement.appendChild(box);
+  }
+  const value = Math.max(4, Math.min(100, percent));
+  const bar = box.querySelector(".progress-bar");
+  const label = box.querySelector(".progress-label");
+  if (bar) bar.style.width = `${value}%`;
+  if (label) label.textContent = `${Math.round(value)}%`;
+  messagesElement.scrollTop = messagesElement.scrollHeight;
+  if (voiceOn()) setVoicePhase("think", `${Math.round(value)}%`);
+}
+
+function startAnswerProgress() {
+  window.clearInterval(progressTimer);
+  fileProgress.clear();
+  progressValue = 8;
+  showProgress(progressValue);
+  progressTimer = window.setInterval(() => {
+    if (progressValue >= 96) return;
+    progressValue = Math.min(96, progressValue + (progressValue < 50 ? 3 : 1));
+    showProgress(progressValue);
+  }, 450);
+}
+
+function noteModelProgress(info) {
+  if (!generating || !info) return;
+  const name = info.file || "model";
+  if (info.status === "done") fileProgress.set(name, 100);
+  else if (typeof info.progress === "number") fileProgress.set(name, info.progress);
+  else return;
+  const values = [...fileProgress.values()];
+  if (!values.length) return;
+  const average = values.reduce((sum, item) => sum + item, 0) / values.length;
+  const next = Math.max(progressValue, Math.min(92, average));
+  if (next <= progressValue) return;
+  progressValue = next;
+  showProgress(progressValue);
+}
+
 function addTyping() {
-  removeTyping();
-
-  const typing = document.createElement("div");
-  typing.className = "typing";
-  typing.id = "typing";
-  typing.innerHTML = "<span></span><span></span><span></span>";
-
-  messagesElement.appendChild(typing);
+  startAnswerProgress();
 }
 
 function removeTyping() {
+  window.clearInterval(progressTimer);
+  progressTimer = 0;
   document.getElementById("typing")?.remove();
 }
 
@@ -1668,7 +1712,6 @@ async function sendMessage(text, replaceAt) {
   }
 
   generating = true;
-  if (voiceOn()) setVoicePhase("think", "Думаю");
   sendButton.disabled = true;
   input.disabled = true;
 

@@ -525,30 +525,31 @@ button {
 }
 
 .typing {
-  display: flex;
-  gap: 5px;
+  display: grid;
+  gap: 6px;
+  width: min(420px, calc(100% - 48px));
   margin: 10px 0 10px 48px;
 }
 
-.typing span {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: #a58bff;
-  animation: blink 1s infinite alternate;
+.progress-label {
+  color: #c4b2ff;
+  font-size: 12px;
+  font-weight: 700;
 }
 
-.typing span:nth-child(2) {
-  animation-delay: .2s;
+.progress-track {
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #2a2b36;
 }
 
-.typing span:nth-child(3) {
-  animation-delay: .4s;
-}
-
-@keyframes blink {
-  from { opacity: .3; }
-  to { opacity: 1; }
+.progress-bar {
+  height: 100%;
+  width: 4%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #6d5cff, #c4b2ff);
+  transition: width .25s linear;
 }
 
 .composer-area {
