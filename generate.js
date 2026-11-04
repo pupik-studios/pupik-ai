@@ -1,6 +1,6 @@
 /**
- * Pupik AI — локальный генератор рисунков.
- * Без внешних API и облачных моделей.
+ * Pupik AI — локальная генерация рисунка.
+ * Модель рисует в браузере, без поиска фото.
  */
 
 const W = 640;
@@ -1000,15 +1000,6 @@ function drawScene(ctx, theme, rnd, pose) {
     default:
       drawLandscape(ctx, rnd);
   }
-
-  // Подпись
-  ctx.fillStyle = "rgba(0,0,0,0.48)";
-  ctx.fillRect(0, H - 34, W, 34);
-
-  ctx.fillStyle = "#ffffff";
-  ctx.font = "bold 16px sans-serif";
-  ctx.textAlign = "left";
-  ctx.fillText(pose === "dance" && theme.id === "cat" ? "Pupik AI · танцующие коты" : "Pupik AI · локальный рисунок", 14, H - 12);
 }
 
 function paintDrawing(prompt) {
@@ -1335,81 +1326,108 @@ function stampPupik(img) {
   const ctx = canvas.getContext("2d");
   drawContain(ctx, img, W, H);
   const label = "PUPIK AI";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "top";
-  ctx.font = "700 32px sans-serif";
-  if ("letterSpacing" in ctx) ctx.letterSpacing = "3px";
+  ctx.textAlign = "left";
+  ctx.textBaseline = "bottom";
+  ctx.font = "700 22px sans-serif";
+  if ("letterSpacing" in ctx) ctx.letterSpacing = "1px";
   ctx.lineJoin = "round";
-  ctx.lineWidth = 6;
+  ctx.lineWidth = 4;
   ctx.strokeStyle = "rgba(0,0,0,0.8)";
-  ctx.strokeText(label, W / 2, H - 58);
+  ctx.strokeText(label, 16, H - 14);
   ctx.fillStyle = "#ffffff";
-  ctx.fillText(label, W / 2, H - 58);
+  ctx.fillText(label, 16, H - 14);
   return canvas.toDataURL("image/jpeg", 0.9);
 }
 
-async function livelyCatUrl() {
-  const dancing = await searchPhotos("cat dancing", /cat dancing in the snow/i);
-  const together = dancing.length ? [] : await searchPhotos("kittens playing together", /kittens playing together/i);
-  const choice = dancing[0] || together[0];
-  if (!choice) throw new Error("no photo");
-  rememberPhoto(choice.url);
-  return choice.url;
+let onImageProgress = () => {};
+let painter = null;
+let painting = null;
+
+export function setImageProgress(fn) {
+  onImageProgress = typeof fn === "function" ? fn : () => {};
 }
 
-async function withMark(url) {
-  if (typeof document === "undefined") return url;
-  try {
-    return stampPupik(await loadImage(url, true));
-  } catch (error) {
-    console.warn("Надпись не встала:", error);
-    return url;
+async function modelPrompt(prompt) {
+  const p = normalize(prompt);
+  const dance = /танц|пляш|dance/.test(p);
+  const known = photoSubjects(prompt).filter(item => item.known).map(item => item.query);
+  let scene = known.join(" and ");
+  if (!scene) {
+    const raw = String(prompt || "")
+      .replace(/нарисуй|нарисовать|картинк\w*|фото\w*|рисунок\w*/gi, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    scene = raw ? await toEnglish(raw) : "a landscape";
   }
+  if (dance && /\bcat\b/.test(scene)) scene = "three fluffy kittens dancing on their hind legs";
+  else if (dance) scene = `${scene} dancing`;
+  return `realistic photo of ${scene}`;
 }
 
-async function markedPhoto() {
-  const img = await loadImage(await livelyCatUrl(), true);
-  return stampPupik(img);
+async function localPainter() {
+  if (painter) return painter;
+  if (!navigator.gpu) throw new Error("no webgpu");
+  if (!painting) {
+    painting = (async () => {
+      const ortMod = await import("https://cdn.jsdelivr.net/npm/onnxruntime-web@1.21.0/dist/ort.webgpu.min.mjs");
+      const ort = ortMod.default ?? ortMod;
+      const wasmPaths = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.21.0/dist/";
+      if (ort.env?.wasm) ort.env.wasm.wasmPaths = wasmPaths;
+      const lib = await import("https://cdn.jsdelivr.net/npm/web-txt2img@0.3.1/dist/index.js");
+      const { AutoTokenizer, env } = await import("https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1");
+      env.allowLocalModels = false;
+      const loaded = await lib.loadModel("sd-turbo", {
+        backendPreference: ["webgpu"],
+        ort,
+        wasmPaths,
+        tokenizerProvider: async () => {
+          const tok = await AutoTokenizer.from_pretrained("Xenova/clip-vit-base-patch16");
+          tok.pad_token_id = 0;
+          return (text, opts) => tok(text, opts);
+        },
+        onProgress: event => {
+          const pct = typeof event?.pct === "number" ? event.pct : 8;
+          onImageProgress(Math.max(8, Math.min(99, pct)), "Рисую");
+        }
+      });
+      if (!loaded?.ok) throw new Error(loaded?.message || "model");
+      painter = lib;
+      return lib;
+    })().catch(error => {
+      painting = null;
+      throw error;
+    });
+  }
+  return painting;
 }
 
-export async function generateImage(prompt) {
-  if (shouldPaint(prompt) && typeof document !== "undefined") {
-    try {
-      return { dataUrl: await markedPhoto(), theme: "photo" };
-    } catch (error) {
-      console.warn("Фото котов не вышло:", error);
-    }
-    return { dataUrl: paintDrawing(prompt), theme: "drawing" };
-  }
-  const subjects = photoSubjects(prompt);
-  const turn = photoTurn();
-  const number = (normalize(prompt).match(/номер[а-я]*\s*(\d{1,2})|number\s*(\d{1,2})|№\s*(\d{1,2})/) || []).slice(1).find(Boolean) || "";
-  if (!subjects.length) throw new Error("no photo");
-  const face = /лицом|спереди|анфас|в лицо/.test(normalize(prompt));
-  const action = photoAction(prompt);
-  if (subjects.length > 1) {
-    const phrases = [];
-    for (const subject of subjects) {
-      phrases.push(subject.known ? subject.query : await toEnglish(subject.query));
-    }
-    const words = phrases.map(phrase => phrase.split(/\s+/).pop());
-    const found = await searchPhotos(words.join(" "), /[\s\S]/);
-    const together = found.filter(item => subjects.every((subject, index) => {
-      if (subject.title) return subject.title.test(item.title);
-      return new RegExp(phrases[index].split(/\s+/).pop(), "i").test(item.title);
-    }));
-    const choice = together[0];
-    if (!choice) {
-      const names = subjects.map(subject => subject.label).join(" и ");
-      throw new Error(`Нет одного фото, где ${names} вместе.`);
-    }
-    rememberPhoto(choice.url);
-    return { dataUrl: await withMark(choice.url), theme: "photo" };
-  }
-  const url = await findPhoto(subjects[0], turn, {
-    face,
-    action,
-    number: subjects[0].known && /Ronaldo|Messi|Ronaldinho/.test(subjects[0].query) ? number : ""
+async function generatedPhoto(prompt) {
+  const lib = await localPainter();
+  onImageProgress(70, "Рисую");
+  const result = await lib.generateImage({
+    model: "sd-turbo",
+    prompt: await modelPrompt(prompt),
+    seed: hash(normalize(prompt)) % 1000000,
+    width: 512,
+    height: 512
   });
-  return { dataUrl: await withMark(url), theme: "photo" };
+  if (!result?.ok || !result.blob) throw new Error(result?.message || "draw");
+  const url = URL.createObjectURL(result.blob);
+  try {
+    return stampPupik(await loadImage(url));
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+export async function generateImage(prompt, options = {}) {
+  if (typeof document === "undefined") throw new Error("no photo");
+  if (!options.quick) {
+    try {
+      return { dataUrl: await generatedPhoto(prompt), theme: "photo" };
+    } catch (error) {
+      console.warn("Генерация не вышла:", error);
+    }
+  }
+  return { dataUrl: stampPupik(await loadImage(paintDrawing(prompt))), theme: "drawing" };
 }

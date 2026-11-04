@@ -1,5 +1,5 @@
 
-import { generateImage, wantsImage, extractImagePrompt, photoSubjects } from "./generate.js?v=48";
+import { generateImage, wantsImage, extractImagePrompt, photoSubjects, setImageProgress } from "./generate.js?v=50";
 import { trySolve } from "./knowledge.js?v=20";
 
 const MODELS = [
@@ -623,6 +623,11 @@ function showProgress(percent, caption) {
   messagesElement.scrollTop = messagesElement.scrollHeight;
   if (voiceOn()) setVoicePhase("think", text);
 }
+
+setImageProgress((pct, label) => {
+  stageLabel = label;
+  showProgress(pct, `${label} · ${Math.round(pct)}%`);
+});
 
 function startAnswerProgress() {
   window.clearInterval(progressTimer);
@@ -1944,19 +1949,19 @@ function drawingCaption(question) {
   const q = question.toLowerCase().replace(/ё/g, "е");
   if (/учу русск|изучаю русск/.test(q)) remember("учит русский");
   if (/танц|пляш|dance/.test(q) && /кот|кошк|котен|cat|kitten/.test(q)) {
-    return "Вот фото: танцующие коты.";
+    return "Вот рисунок: танцующие коты.";
   }
   const labels = photoSubjects(question).map(item => item.label);
   const again = /друг|ещ[её]|another|different/.test(q);
   if (labels.length > 1 && /сбив|толк|подкат/.test(q)) {
-    return `Вот фото: ${labels[0]} сбивает ${labels[1]}.`;
+    return `Вот рисунок: ${labels[0]} сбивает ${labels[1]}.`;
   }
-  if (labels.length > 1) return `${again ? "Вот другие фото" : "Вот фото"}: ${labels.join(" и ")}.`;
+  if (labels.length > 1) return `${again ? "Вот другие рисунки" : "Вот рисунок"}: ${labels.join(" и ")}.`;
   if (labels.length === 1 && /забив|забил|(?:^|[^а-я])гол(?:а|у|ом|е|ы|ов)?(?:[^а-я]|$)/.test(q)) {
-    return `Вот фото: ${labels[0]} забивает гол.`;
+    return `Вот рисунок: ${labels[0]} забивает гол.`;
   }
-  if (labels.length === 1) return again ? `Вот другое фото: ${labels[0]}.` : `Вот фото: ${labels[0]}.`;
-  return "Вот фото.";
+  if (labels.length === 1) return again ? `Вот другой рисунок: ${labels[0]}.` : `Вот рисунок: ${labels[0]}.`;
+  return "Вот рисунок.";
 }
 
 function previousImagePrompt() {
@@ -2045,6 +2050,8 @@ async function sendMessage(text, replaceAt) {
         answer = named("напиши имя в аккаунте, тогда «нарисуй меня» будет про тебя.");
       } else {
       try {
+        stageLabel = "Рисую";
+        showProgress(8, "Рисую");
         const drawn = await generateImage(prompt);
         image = drawn.dataUrl;
         const caption = drawingCaption(prompt);
@@ -2064,7 +2071,7 @@ async function sendMessage(text, replaceAt) {
         console.warn("Фото не найдено:", error);
         answer = error?.message && error.message !== "no photo"
           ? error.message
-          : "Не нашёл фото по этим словам.";
+          : "Не получилось нарисовать.";
       }
       }
     } else {
@@ -2072,7 +2079,7 @@ async function sendMessage(text, replaceAt) {
       const photoQuery = answer && explanationPhotoQuery(question);
       if (photoQuery) {
         try {
-          image = await withTimeout(generateImage(photoQuery).then(drawn => drawn.dataUrl), 12000);
+          image = await withTimeout(generateImage(photoQuery, { quick: true }).then(drawn => drawn.dataUrl), 12000);
         } catch (error) {
           console.warn("Фото к объяснению не нашлось:", error);
         }
