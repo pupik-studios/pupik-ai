@@ -984,10 +984,11 @@ export function wantsCollage(text) {
 export function wantsImage(text) {
   const p = normalize(text);
 
-  return (
+  if (
     wantsCollage(p) ||
     /нарисуй|нарисовать|сгенер|генерируй|создай\s+(картин|изображен|фото)|сделай\s+(картин|изображен|фото)|draw\b|generate\b.*\b(image|picture|photo)|картинк|изображение|фотографию/.test(p)
-  );
+  ) return true;
+  return /найди|покажи|ищи/.test(p) && photoSubjects(p).some(item => item.known);
 }
 
 export function extractImagePrompt(text) {

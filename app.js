@@ -1,5 +1,5 @@
 
-import { generateImage, wantsImage, extractImagePrompt, photoSubjects } from "./generate.js?v=36";
+import { generateImage, wantsImage, extractImagePrompt, photoSubjects } from "./generate.js?v=37";
 import { trySolve } from "./knowledge.js?v=20";
 
 const MODELS = [
@@ -114,6 +114,17 @@ function withTimeout(promise, ms) {
   ]);
 }
 
+function modelGarbage(text) {
+  const clean = String(text || "").toLowerCase();
+  if (/не могу решить|теряюсь|превращен|тупост|какое-то странное|недоразумени/.test(clean)) return true;
+  const words = clean.replace(/[^a-zа-я0-9]+/gi, " ").split(/\s+/).filter(Boolean);
+  if (words.length < 8) return false;
+  const counts = new Map();
+  for (const word of words) counts.set(word, (counts.get(word) || 0) + 1);
+  const top = Math.max(...counts.values());
+  return top >= 6 && top / words.length >= 0.3;
+}
+
 function cleanModelText(text) {
   const clean = String(text || "")
     .replace(/<think>[\s\S]*?<\/think>/gi, "")
@@ -182,7 +193,7 @@ async function generateWith(model) {
       repetition_penalty: 1.05
     }), 45000);
     const clean = cleanModelText(extractAnswer(result));
-    if (/не могу решить|теряюсь|превращен|тупост|какое-то странное|недоразумени/.test(clean.toLowerCase())) return "";
+    if (modelGarbage(clean)) return "";
     return clean;
   } catch (error) {
     console.warn(`${model.label} не успел:`, error);
