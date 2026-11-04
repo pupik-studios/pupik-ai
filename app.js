@@ -114,10 +114,18 @@ function withTimeout(promise, ms) {
   ]);
 }
 
+function weirdWord(word) {
+  if (word.length < 6 || /[a-z0-9]/i.test(word)) return false;
+  if (!/[аеёиоуыэюя]/.test(word)) return true;
+  if (/[бвгджзйклмнпрстфхцчшщ]{4,}/.test(word)) return true;
+  return /рща|рщу|внр|увну|щаев|нрщ/.test(word);
+}
+
 function modelGarbage(text) {
   const clean = String(text || "").toLowerCase();
   if (/не могу решить|теряюсь|превращен|тупост|какое-то странное|недоразумени/.test(clean)) return true;
   const words = clean.replace(/[^a-zа-я0-9]+/gi, " ").split(/\s+/).filter(Boolean);
+  if (words.some(weirdWord)) return true;
   if (words.length < 8) return false;
   const counts = new Map();
   for (const word of words) counts.set(word, (counts.get(word) || 0) + 1);
@@ -1470,6 +1478,9 @@ function localAnswer(question) {
   const defined = knownDefinition(q);
   if (defined) return defined;
 
+  const school = schoolAnswer(q);
+  if (school) return school;
+
   const solved = trySolve(question);
   if (solved?.answer && !/нарисуй/.test(q)) return solved.answer;
 
@@ -1480,6 +1491,15 @@ function definitionTopic(q) {
   const match = q.match(/^(?:что такое|что это(?:\s+за)?|what is)\s+(.+)$/);
   if (!match) return "";
   return match[1].replace(/[?!.]+$/g, "").trim();
+}
+
+function schoolAnswer(q) {
+  if (!/пушкин/.test(q)) return "";
+  return named(`Пушкина учат, потому что с него начинается современный русский литературный язык.
+
+Александр Сергеевич Пушкин, 1799–1837. В школе читают сказки, стихи и «Евгения Онегина»: по ним видно, как устроен русский стих и как говорят о любви, долге и свободе.
+
+Коротко: без Пушкина не понять, откуда взялся сегодняшний русский язык.`);
 }
 
 function knownDefinition(q) {
