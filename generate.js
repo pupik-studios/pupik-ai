@@ -1337,14 +1337,14 @@ function stampPupik(img) {
   const label = "PUPIK AI";
   ctx.textAlign = "center";
   ctx.textBaseline = "top";
-  ctx.font = "700 58px sans-serif";
-  if ("letterSpacing" in ctx) ctx.letterSpacing = "6px";
+  ctx.font = "700 32px sans-serif";
+  if ("letterSpacing" in ctx) ctx.letterSpacing = "3px";
   ctx.lineJoin = "round";
-  ctx.lineWidth = 12;
+  ctx.lineWidth = 6;
   ctx.strokeStyle = "rgba(0,0,0,0.8)";
-  ctx.strokeText(label, W / 2, 22);
+  ctx.strokeText(label, W / 2, H - 58);
   ctx.fillStyle = "#ffffff";
-  ctx.fillText(label, W / 2, 22);
+  ctx.fillText(label, W / 2, H - 58);
   return canvas.toDataURL("image/jpeg", 0.9);
 }
 
