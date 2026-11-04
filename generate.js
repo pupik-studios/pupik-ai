@@ -851,10 +851,77 @@ function drawLandscape(ctx, rnd) {
   }
 }
 
-function drawScene(ctx, theme, rnd) {
+function musicNote(ctx, x, y, color) {
+  ellipse(ctx, x, y, 8, 5, color, -0.5);
+  line(ctx, x + 7, y - 1, x + 7, y - 32, color, 3);
+  line(ctx, x + 7, y - 32, x + 18, y - 26, color, 3);
+}
+
+function catHead(ctx, x, y, fur) {
+  polygon(ctx, [[x - 30, y - 8], [x - 34, y - 46], [x - 8, y - 16]], fur);
+  polygon(ctx, [[x + 8, y - 16], [x + 34, y - 46], [x + 30, y - 8]], fur);
+  polygon(ctx, [[x - 24, y - 14], [x - 28, y - 36], [x - 12, y - 16]], "#f4b1b1");
+  polygon(ctx, [[x + 12, y - 16], [x + 28, y - 36], [x + 24, y - 14]], "#f4b1b1");
+  circle(ctx, x, y, 34, fur);
+  eyes(ctx, x, y - 4, 28);
+  polygon(ctx, [[x - 6, y + 8], [x + 6, y + 8], [x, y + 16]], "#e98291");
+  line(ctx, x, y + 16, x, y + 24, "#49342d", 2);
+  line(ctx, x - 18, y + 6, x - 46, y, "#49342d", 2);
+  line(ctx, x - 18, y + 12, x - 44, y + 14, "#49342d", 2);
+  line(ctx, x + 18, y + 6, x + 46, y, "#49342d", 2);
+  line(ctx, x + 18, y + 12, x + 44, y + 14, "#49342d", 2);
+}
+
+function dancingCat(ctx, x, y, fur, pose) {
+  const dark = "#b56d2e";
+  if (pose === "jump") {
+    ellipse(ctx, x - 34, y + 8, 16, 42, fur, 0.7);
+    ellipse(ctx, x + 30, y + 18, 16, 40, fur, -0.4);
+    ellipse(ctx, x, y + 36, 34, 48, fur, -0.15);
+    circle(ctx, x - 18, y + 78, 12, dark);
+    circle(ctx, x + 22, y + 82, 12, dark);
+    ellipse(ctx, x - 46, y + 70, 14, 28, fur, 0.8);
+    ellipse(ctx, x + 42, y + 24, 12, 26, fur, -0.9);
+    catHead(ctx, x + 6, y - 20, fur);
+    return;
+  }
+  if (pose === "spin") {
+    ellipse(ctx, x + 36, y + 20, 18, 46, fur, 1.2);
+    ellipse(ctx, x, y + 34, 40, 32, fur, 0.4);
+    ellipse(ctx, x - 28, y + 70, 16, 30, fur, -0.6);
+    ellipse(ctx, x + 24, y + 74, 14, 26, fur, 0.5);
+    ellipse(ctx, x + 48, y + 8, 12, 24, fur, -1);
+    catHead(ctx, x - 8, y - 6, fur);
+    return;
+  }
+  ellipse(ctx, x - 48, y + 28, 16, 50, fur, 0.9);
+  ellipse(ctx, x - 8, y + 78, 16, 28, fur, 0.15);
+  ellipse(ctx, x + 24, y + 78, 16, 28, fur, -0.1);
+  ellipse(ctx, x, y + 34, 36, 48, fur, -0.2);
+  ellipse(ctx, x + 34, y - 8, 12, 28, fur, -0.95);
+  ellipse(ctx, x - 30, y + 20, 12, 22, fur, 0.4);
+  catHead(ctx, x + 4, y - 24, fur);
+}
+
+function drawDancingCats(ctx, fur) {
+  ground(ctx, "#f7c3d8");
+  ellipse(ctx, 320, 300, 250, 28, "rgba(255,255,255,0.35)");
+  musicNote(ctx, 70, 120, "#7a4dff");
+  musicNote(ctx, 560, 150, "#ff5d8f");
+  musicNote(ctx, 300, 78, "#ffb703");
+  circle(ctx, 120, 90, 8, "#ffffff");
+  circle(ctx, 480, 70, 6, "#ffffff");
+  dancingCat(ctx, 150, 210, fur, "up");
+  dancingCat(ctx, 330, 188, "#f2c14e", "jump");
+  dancingCat(ctx, 500, 214, "#d9844a", "spin");
+}
+
+function drawScene(ctx, theme, rnd, pose) {
   background(ctx, theme.bg);
 
-  switch (theme.id) {
+  if (pose === "dance" && theme.id === "cat") {
+    drawDancingCats(ctx, theme.fur);
+  } else switch (theme.id) {
     case "beaver":
       drawBeaver(ctx);
       break;
@@ -941,7 +1008,23 @@ function drawScene(ctx, theme, rnd) {
   ctx.fillStyle = "#ffffff";
   ctx.font = "bold 16px sans-serif";
   ctx.textAlign = "left";
-  ctx.fillText("Pupik AI · локальный рисунок", 14, H - 12);
+  ctx.fillText(pose === "dance" && theme.id === "cat" ? "Pupik AI · танцующие коты" : "Pupik AI · локальный рисунок", 14, H - 12);
+}
+
+function paintDrawing(prompt) {
+  const canvas = document.createElement("canvas");
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext("2d");
+  const theme = detectTheme(prompt);
+  const pose = /танц|пляш|dance/.test(normalize(prompt)) ? "dance" : "";
+  drawScene(ctx, theme, randomGenerator(hash(prompt)), pose);
+  return canvas.toDataURL("image/png");
+}
+
+function shouldPaint(prompt) {
+  const p = normalize(prompt);
+  return /танц|пляш|dance/.test(p) && /кот|кошк|котен|cat|kitten/.test(p);
 }
 
 function loadImage(src, cors = false) {
@@ -1213,6 +1296,9 @@ async function collage(urls) {
 }
 
 export async function generateImage(prompt) {
+  if (shouldPaint(prompt) && typeof document !== "undefined") {
+    return { dataUrl: paintDrawing(prompt), theme: "drawing" };
+  }
   const subjects = photoSubjects(prompt);
   const turn = photoTurn();
   const number = (normalize(prompt).match(/номер[а-я]*\s*(\d{1,2})|number\s*(\d{1,2})|№\s*(\d{1,2})/) || []).slice(1).find(Boolean) || "";
