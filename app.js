@@ -2274,10 +2274,59 @@ function stopHearing() {
   syncMic();
 }
 
-function startHearing() {
-  if (speaking || generating || voiceBlocked || micPaused) return;
+let micOpening = false;
+let micReady = false;
+
+function ensureMic() {
+  if (micReady || !navigator.mediaDevices?.getUserMedia) return Promise.resolve("ok");
+  return navigator.mediaDevices.getUserMedia({ audio: true })
+    .then(stream => {
+      stream.getTracks().forEach(track => track.stop());
+      micReady = true;
+      return "ok";
+    })
+    .catch(error => (error?.name === "NotFoundError" ? "missing" : "denied"));
+}
+
+async function micState() {
+  try {
+    const status = await navigator.permissions.query({ name: "microphone" });
+    return status.state;
+  } catch {
+    return "";
+  }
+}
+
+async function startHearing() {
+  if (speaking || generating || voiceBlocked || micPaused || micOpening) return;
   if (!SpeechRecognition) {
     setVoicePhase("listen", "В Safari голос не слышит. Открой страницу в Chrome.");
+    return;
+  }
+  micOpening = true;
+  const state = await micState();
+  if (!voiceOn() || micPaused) {
+    micOpening = false;
+    return;
+  }
+  if (state === "denied") {
+    micOpening = false;
+    voiceBlocked = true;
+    setVoicePhase("listen", "Нажми замок слева в адресе и разреши микрофон сайту.");
+    return;
+  }
+  if (state !== "granted") setVoicePhase("listen", "Разреши микрофон сайту.");
+  const mic = await ensureMic();
+  micOpening = false;
+  if (!voiceOn() || micPaused || speaking || generating) return;
+  if (mic === "denied") {
+    voiceBlocked = true;
+    setVoicePhase("listen", "Нажми замок слева в адресе и разреши микрофон сайту.");
+    return;
+  }
+  if (mic === "missing") {
+    voiceBlocked = true;
+    setVoicePhase("listen", "Микрофон не найден.");
     return;
   }
   if (!recognition) {
@@ -2301,12 +2350,12 @@ function startHearing() {
       sendMessage(finalText);
     };
     recognition.onerror = event => {
-      if (event.error === "not-allowed" || event.error === "service-not-allowed") {
+      if (event.error === "not-allowed") {
         voiceBlocked = true;
-        setVoicePhase("listen", "Разреши микрофон в Chrome.");
-      } else if (event.error === "network") {
+        setVoicePhase("listen", "Нажми замок слева в адресе и разреши микрофон сайту.");
+      } else if (event.error === "service-not-allowed" || event.error === "network") {
         micPaused = true;
-        setVoicePhase("listen", "Chrome не разобрал речь. Напиши вопрос текстом.");
+        setVoicePhase("listen", "Речь не доходит, часто мешает VPN. Напиши текстом.");
       } else if (event.error !== "no-speech" && event.error !== "aborted") {
         setVoicePhase("listen", "Не расслышал. Скажи ещё раз.");
       }
