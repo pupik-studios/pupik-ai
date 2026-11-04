@@ -1733,6 +1733,9 @@ async function answerOfficialLink(question) {
   const followLink = /ссылк|официальн/.test(previous) && /^(?:на\s+)?[\p{L}\d][\p{L}\d .+-]{0,40}$/u.test(q.trim());
   const bare = /^(?:дай\s+|скинь\s+|пришли\s+|нужна\s+)?ссылк[а-я]*[.!?]*$/.test(q.trim());
   if (!/ссылк|официальн[а-я]*\s+сайт/.test(q) && !followLink) return "";
+  if (/(?:^|[^а-яa-z])(?:ии|пупик|pupik)(?:[^а-яa-z]|$)/.test(q)) {
+    return named("вот ссылка на Pupik AI: https://pupik-studios.github.io/pupik-ai/");
+  }
   const blob = [q, ...recentUserTexts(4)].join(" ");
   if (/пушкин/.test(bare ? blob : q)) {
     return named("вот ссылка на Александра Пушкина: https://ru.wikipedia.org/wiki/Пушкин,_Александр_Сергеевич");
