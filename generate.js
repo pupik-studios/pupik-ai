@@ -1226,7 +1226,7 @@ async function searchPhotos(term, titlePattern) {
   if (!response.ok) throw new Error("commons");
   const data = await response.json();
   const pages = Object.values(data.query?.pages || {});
-  const skip = /escultura|statue|sculpture|logo|icon|\bmap\b|flag|diagram|drawing|sketch|svg|coat of arms|monument|museum|museu|hotel|20120609|boots on display|river|lake|bridge|valley|street|road|village|district|park|drive|dunes|geograph|hosts|countries|chart|graph|locator|timeline/i;
+  const skip = /escultura|statue|sculpture|logo|icon|\bmap\b|flag|diagram|drawing|sketch|painting|illustration|lithograph|engraving|etching|watercolor|chromo|postcard|artwork|svg|coat of arms|monument|museum|museu|hotel|20120609|boots on display|river|lake|bridge|valley|street|road|village|district|park|drive|dunes|geograph|hosts|countries|chart|graph|locator|timeline/i;
   return pages
     .map(page => ({
       title: page.title || "",
@@ -1269,6 +1269,20 @@ async function findPhoto(subject, turn = 0, options = {}) {
   if (!subject.known && /world cup/i.test(phrase)) {
     const cup = pool.filter(item => /fifa|trophy|final|football|soccer/i.test(item.title));
     if (cup.length) pool = cup;
+  }
+  const junk = {
+    dog: /sun ?dog|wild dog|dhole|hot ?dog|linux|koons/i,
+    car: /cable car|tram|\btrain\b|shinkansen|metro|subway|locomotive|antenna|\bradio\b|railway|railroad|wagon|bulb|lamp|seat|upholster|engine|\btire\b|\btyre\b|\bwheel\b|bumper|battery|spare/i,
+    house: /opera|ballet|concert|bird\s?house|warehouse|\bpub\b/i,
+    cat: /lynx|bobcat|wild ?cat|tiger|leopard|cheetah|puma|cougar|sphynx/i,
+    fox: /firefox|fox news/i,
+    bear: /teddy|gummy/i,
+    fish: /starfish|shellfish/i,
+    lion: /lionel|dandelion/i
+  };
+  if (subject.known && junk[subject.query]) {
+    const kept = pool.filter(item => !junk[subject.query].test(item.title));
+    if (kept.length) pool = kept;
   }
   if (action && !pool.length) throw new Error(`Нет фото, где ${subject.label} ${action.label}.`);
   const fresh = pool.filter(item => !seenPhotos().includes(item.url));
@@ -1343,8 +1357,18 @@ async function livelyCatUrl() {
   return choice.url;
 }
 
+async function withMark(url) {
+  if (typeof document === "undefined") return url;
+  try {
+    return stampPupik(await loadImage(url, true));
+  } catch (error) {
+    console.warn("Надпись не встала:", error);
+    return url;
+  }
+}
+
 async function markedPhoto() {
-  const img = await loadImage(await livelyCatUrl(photoTurn()), true);
+  const img = await loadImage(await livelyCatUrl(), true);
   return stampPupik(img);
 }
 
@@ -1380,12 +1404,12 @@ export async function generateImage(prompt) {
       throw new Error(`Нет одного фото, где ${names} вместе.`);
     }
     rememberPhoto(choice.url);
-    return { dataUrl: choice.url, theme: "photo" };
+    return { dataUrl: await withMark(choice.url), theme: "photo" };
   }
   const url = await findPhoto(subjects[0], turn, {
     face,
     action,
     number: subjects[0].known && /Ronaldo|Messi|Ronaldinho/.test(subjects[0].query) ? number : ""
   });
-  return { dataUrl: url, theme: "photo" };
+  return { dataUrl: await withMark(url), theme: "photo" };
 }
