@@ -1,5 +1,5 @@
 
-import { generateImage, wantsImage, extractImagePrompt, photoSubjects } from "./generate.js?v=40";
+import { generateImage, wantsImage, extractImagePrompt, photoSubjects } from "./generate.js?v=44";
 import { trySolve } from "./knowledge.js?v=20";
 
 const MODELS = [

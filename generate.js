@@ -1295,38 +1295,49 @@ async function collage(urls) {
   return canvas.toDataURL("image/jpeg", 0.86);
 }
 
+function drawContain(ctx, img, width, height) {
+  ctx.fillStyle = "#161616";
+  ctx.fillRect(0, 0, width, height);
+  const imageRatio = img.width / img.height;
+  const boxRatio = width / height;
+  let dw = width;
+  let dh = height;
+  let dx = 0;
+  let dy = 0;
+  if (imageRatio > boxRatio) {
+    dh = width / imageRatio;
+    dy = (height - dh) / 2;
+  } else {
+    dw = height * imageRatio;
+    dx = (width - dw) / 2;
+  }
+  ctx.drawImage(img, dx, dy, dw, dh);
+}
+
 function stampPupik(img) {
   const canvas = document.createElement("canvas");
   canvas.width = W;
   canvas.height = H;
   const ctx = canvas.getContext("2d");
-  drawCover(ctx, img, 0, 0, W, H);
+  drawContain(ctx, img, W, H);
+  const label = "PUPIK AI";
   ctx.textAlign = "center";
-  ctx.font = "700 28px sans-serif";
-  if ("letterSpacing" in ctx) ctx.letterSpacing = "5px";
-  ctx.lineWidth = 6;
-  ctx.strokeStyle = "rgba(0,0,0,0.55)";
-  ctx.strokeText("PUPIK AI", W / 2, 58);
+  ctx.textBaseline = "top";
+  ctx.font = "700 58px sans-serif";
+  if ("letterSpacing" in ctx) ctx.letterSpacing = "6px";
+  ctx.lineJoin = "round";
+  ctx.lineWidth = 12;
+  ctx.strokeStyle = "rgba(0,0,0,0.8)";
+  ctx.strokeText(label, W / 2, 22);
   ctx.fillStyle = "#ffffff";
-  ctx.fillText("PUPIK AI", W / 2, 58);
+  ctx.fillText(label, W / 2, 22);
   return canvas.toDataURL("image/jpeg", 0.9);
 }
 
-async function livelyCatUrl(turn) {
-  const skip = /newborn|sleep|asleep|dead|corpse|sphynx|hairless|naked|medical|surgery|skull|bone|dissect/i;
-  const prefer = /stand|play|jump|dance|sit|walk|paw|upright/i;
-  const pool = [];
-  for (const term of ["kitten", "kittens", "cat"]) {
-    const found = await searchPhotos(term, /kitten|\bcat\b/i);
-    for (const item of found) {
-      if (skip.test(item.title) || pool.some(have => have.url === item.url)) continue;
-      pool.push(item);
-    }
-    if (pool.length >= 12) break;
-  }
-  const lively = pool.filter(item => prefer.test(item.title));
-  const list = lively.length ? lively : pool;
-  const choice = list[turn % Math.max(1, list.length)];
+async function livelyCatUrl() {
+  const dancing = await searchPhotos("cat dancing", /cat dancing in the snow/i);
+  const together = dancing.length ? [] : await searchPhotos("kittens playing together", /kittens playing together/i);
+  const choice = dancing[0] || together[0];
   if (!choice) throw new Error("no photo");
   rememberPhoto(choice.url);
   return choice.url;
