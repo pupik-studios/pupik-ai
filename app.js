@@ -1,5 +1,5 @@
 
-import { generateImage, wantsImage, extractImagePrompt, photoSubjects } from "./generate.js?v=38";
+import { generateImage, wantsImage, extractImagePrompt, photoSubjects } from "./generate.js?v=40";
 import { trySolve } from "./knowledge.js?v=20";
 
 const MODELS = [
@@ -1944,7 +1944,7 @@ function drawingCaption(question) {
   const q = question.toLowerCase().replace(/ё/g, "е");
   if (/учу русск|изучаю русск/.test(q)) remember("учит русский");
   if (/танц|пляш|dance/.test(q) && /кот|кошк|котен|cat|kitten/.test(q)) {
-    return "Вот рисунок: танцующие коты.";
+    return "Вот фото: танцующие коты.";
   }
   const labels = photoSubjects(question).map(item => item.label);
   const again = /друг|ещ[её]|another|different/.test(q);
