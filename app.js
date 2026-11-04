@@ -36,6 +36,7 @@ function loadAI() {
   if (loadingPromise && loadingRepo === repo) return loadingPromise;
   loadingRepo = repo;
   modelFailed = false;
+  loadMoved = Date.now();
   loadingPromise = (async () => {
     try {
       if (agentHint && currentModel().repo === repo) agentHint.textContent = "Qwen3 грузится…";
@@ -108,14 +109,13 @@ async function qwenAnswer() {
   const repo = currentModel().repo;
   if (!repo || !canLoadModel() || modelFailed) return "";
   if (!ai || aiRepo !== repo) {
-    try {
-      await withTimeout(loadAI(), 120000);
-    } catch (error) {
-      console.warn("Qwen не дождался:", error);
+    if (modelStalled()) {
+      modelFailed = true;
       return "";
     }
+    if (!loadingPromise) loadAI();
+    return "";
   }
-  if (!ai || aiRepo !== repo) return "";
   try {
     const prompt = [
       { role: "system", content: systemPrompt() },
@@ -137,6 +137,11 @@ async function qwenAnswer() {
     return clean;
   } catch (error) {
     console.warn("Qwen не успел:", error);
+    if (String(error?.message || error).includes("timeout")) {
+      modelFailed = true;
+      ai = null;
+      aiRepo = "";
+    }
     return "";
   }
 }
@@ -504,6 +509,7 @@ function decorateReply(question, answer, hasImage) {
 
 let progressTimer = 0;
 let progressValue = 0;
+let loadMoved = 0;
 const fileProgress = new Map();
 
 function showProgress(percent) {
@@ -530,13 +536,22 @@ function startAnswerProgress() {
   progressValue = 8;
   showProgress(progressValue);
   progressTimer = window.setInterval(() => {
-    if (progressValue >= 96) return;
-    progressValue = Math.min(96, progressValue + (progressValue < 50 ? 3 : 1));
+    if (progressValue >= 99) return;
+    progressValue = Math.min(99, progressValue + (progressValue < 70 ? 4 : 0.6));
     showProgress(progressValue);
-  }, 450);
+  }, 400);
+}
+
+function modelStalled() {
+  if (ai && aiRepo === currentModel().repo) return false;
+  if (!loadingPromise || !loadMoved) return false;
+  return Date.now() - loadMoved > 12000;
 }
 
 function noteModelProgress(info) {
+  if (info && (info.status === "progress" || info.status === "done" || typeof info.progress === "number")) {
+    loadMoved = Date.now();
+  }
   if (!generating || !info) return;
   const name = info.file || "model";
   if (info.status === "done") fileProgress.set(name, 100);
@@ -764,9 +779,14 @@ function phoneScreen() {
   return narrow && (navigator.maxTouchPoints > 1 || /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent));
 }
 
+function safariBrowser() {
+  const ua = navigator.userAgent;
+  return /Safari/i.test(ua) && !/Chrome|Chromium|Edg|OPR/i.test(ua);
+}
+
 function canLoadModel() {
   if (!currentModel().repo) return false;
-  return !(currentModel().id === "qwen3" && phoneScreen());
+  return !(currentModel().id === "qwen3" && (phoneScreen() || safariBrowser()));
 }
 
 function afterBoot() {
@@ -1627,13 +1647,11 @@ function windowAnswer(q) {
 
 function fallbackAnswer() {
   const name = userName || "";
-  if (currentModel().id === "qwen3" && phoneScreen()) {
-    return `${name ? name + ", " : ""}Qwen3 на телефоне не помещается. На компьютере в Chrome она отвечает, а здесь спроси факт, задачу или «нарисуй».`;
+  if (currentModel().id === "qwen3" && (phoneScreen() || safariBrowser() || modelFailed)) {
+    return `${name ? name + ", " : ""}Qwen3 в этом окне не запускается. Открой страницу в Chrome на компьютере.`;
   }
   if (currentModel().repo && canLoadModel() && (!ai || aiRepo !== currentModel().repo)) {
-    return named(modelFailed
-      ? "Qwen3 в этом окне не загрузилась. Открой страницу в Chrome."
-      : "Qwen3 ещё качается. Спроси этот вопрос ещё раз через минуту.");
+    return named("этот вопрос пока без большой модели. Спроси факт, задачу или «нарисуй».");
   }
   return `${name ? name + ", я" : "Я"} на связи. Могу написать программу, разобрать задачу, рассказать факт или нарисовать.`;
 }
