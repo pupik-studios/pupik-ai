@@ -15,6 +15,8 @@ let aiRepo = "";
 let loadingPromise = null;
 let loadingRepo = "";
 let modelFailed = false;
+let loadToken = 0;
+let stageLabel = "Смотрю ответ";
 
 function currentModel() {
   return MODELS.find(item => item.id === modelId) || MODELS[1];
@@ -29,25 +31,40 @@ function systemPrompt() {
 Не выдумывай точные цифры. Не ставь оценки самому вопросу. Не пиши скрытые рассуждения.`;
 }
 
-function loadAI() {
-  const repo = currentModel().repo;
-  if (!repo || !canLoadModel()) return Promise.resolve(null);
+function modelAllowed(model) {
+  if (!model?.repo) return false;
+  return !(model.id === "qwen3" && (phoneScreen() || safariBrowser()));
+}
+
+function modelsInOrder() {
+  const selected = currentModel();
+  if (!selected.repo) return [];
+  const rest = MODELS.filter(item => item.repo && item.id !== selected.id);
+  return [selected, ...rest].filter(modelAllowed);
+}
+
+function loadAI(model = currentModel()) {
+  const repo = model?.repo || "";
+  if (!modelAllowed(model)) return Promise.resolve(null);
   if (ai && aiRepo === repo) return Promise.resolve(ai);
   if (loadingPromise && loadingRepo === repo) return loadingPromise;
+  const token = ++loadToken;
   loadingRepo = repo;
   modelFailed = false;
   sawFileProgress = false;
   loadMoved = Date.now();
   loadingPromise = (async () => {
     try {
-      if (agentHint && currentModel().repo === repo) agentHint.textContent = "Qwen3 грузится…";
+      if (agentHint && currentModel().repo === repo) agentHint.textContent = `${model.label} грузится…`;
       const { pipeline, env } = await import("https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1");
       env.useBrowserCache = true;
       env.allowLocalModels = false;
       const load = (device, dtype) => pipeline("text-generation", repo, {
         dtype,
         device,
-        progress_callback: info => noteModelProgress(info)
+        progress_callback: info => {
+          if (token === loadToken) noteModelProgress(info);
+        }
       });
       let ready;
       try {
@@ -57,14 +74,15 @@ function loadAI() {
         console.warn("WebGPU не вышел, беру wasm:", error);
         ready = await load("wasm", "q4");
       }
-      if (currentModel().repo !== repo) return null;
+      if (token !== loadToken) return null;
       ai = ready;
       aiRepo = repo;
       modelFailed = false;
       return ai;
     } catch (error) {
-      if (currentModel().repo === repo) {
+      if (token === loadToken) {
         ai = null;
+        aiRepo = "";
         modelFailed = true;
       }
       console.warn("Qwen не загрузился:", error);
@@ -106,37 +124,44 @@ function extractAnswer(result) {
   return "";
 }
 
-async function waitForModel() {
-  const repo = currentModel().repo;
+function modelTurns() {
+  const turns = chatHistory
+    .filter(item => item?.content)
+    .map(item => ({
+      role: item.role === "assistant" ? "assistant" : "user",
+      content: String(item.content).slice(0, 2000)
+    }));
+  const kept = [];
+  let budget = 7000;
+  for (let i = turns.length - 1; i >= 0 && budget > 0; i -= 1) {
+    const content = turns[i].content.slice(0, budget);
+    kept.unshift({ role: turns[i].role, content });
+    budget -= content.length;
+  }
+  return kept;
+}
+
+async function waitForModel(model) {
+  const repo = model.repo;
   if (ai && aiRepo === repo) return true;
-  if (!loadingPromise) loadAI();
+  if (!loadingPromise || loadingRepo !== repo) loadAI(model);
   const started = Date.now();
-  while ((!ai || aiRepo !== repo) && !modelFailed && Date.now() - started < 180000) {
-    if (modelStalled()) {
-      modelFailed = true;
-      break;
-    }
+  while ((!ai || aiRepo !== repo) && Date.now() - started < 180000) {
+    if (!loadingPromise && !(ai && aiRepo === repo)) break;
+    if (modelStalled()) break;
     await new Promise(resolve => setTimeout(resolve, 400));
   }
   return Boolean(ai && aiRepo === repo);
 }
 
-async function qwenAnswer() {
-  const repo = currentModel().repo;
-  if (!repo || !canLoadModel() || modelFailed) return "";
-  if (!ai || aiRepo !== repo) {
-    const ready = await waitForModel();
-    if (!ready) return "";
-  }
+async function generateWith(model) {
+  const pipe = ai;
+  if (!pipe || aiRepo !== model.repo) return "";
   try {
-    const prompt = [
+    const result = await withTimeout(pipe([
       { role: "system", content: systemPrompt() },
-      ...chatHistory.slice(-6).map(item => ({
-        role: item.role === "assistant" ? "assistant" : "user",
-        content: String(item.content || "").slice(0, 1500)
-      }))
-    ];
-    const result = await withTimeout(ai(prompt, {
+      ...modelTurns()
+    ], {
       max_new_tokens: 220,
       temperature: 0.7,
       do_sample: true,
@@ -148,9 +173,26 @@ async function qwenAnswer() {
     if (/не могу решить|теряюсь|превращен|тупост|какое-то странное|недоразумени/.test(clean.toLowerCase())) return "";
     return clean;
   } catch (error) {
-    console.warn("Qwen не успел:", error);
+    console.warn(`${model.label} не успел:`, error);
     return "";
   }
+}
+
+async function qwenAnswer() {
+  for (const model of modelsInOrder()) {
+    stageLabel = model.label;
+    fileProgress.clear();
+    if (!(ai && aiRepo === model.repo)) {
+      progressValue = Math.max(progressValue, 8);
+      showProgress(progressValue, stageLabel);
+      const ready = await waitForModel(model);
+      if (!ready) continue;
+    }
+    showProgress(99, stageLabel);
+    const text = await generateWith(model);
+    if (text) return text;
+  }
+  return "";
 }
 
 const NAME_KEY = "pupik_user_name";
@@ -545,11 +587,12 @@ function startAnswerProgress() {
   window.clearInterval(progressTimer);
   fileProgress.clear();
   progressValue = 8;
-  showProgress(progressValue, "Качаю Qwen3");
+  stageLabel = "Смотрю ответ";
+  showProgress(progressValue, stageLabel);
   progressTimer = window.setInterval(() => {
-    if (sawFileProgress || progressValue >= 18) return;
+    if (stageLabel !== "Смотрю ответ" || sawFileProgress || progressValue >= 18) return;
     progressValue = Math.min(18, progressValue + 2);
-    showProgress(progressValue, "Качаю Qwen3");
+    showProgress(progressValue, stageLabel);
   }, 500);
 }
 
@@ -573,8 +616,9 @@ function noteModelProgress(info) {
   const values = [...fileProgress.values()];
   if (!values.length) return;
   const average = values.reduce((sum, item) => sum + item, 0) / values.length;
+  const done = values.filter(item => item >= 100).length;
   progressValue = Math.max(4, Math.min(99, average));
-  showProgress(progressValue);
+  showProgress(progressValue, `${stageLabel} · ${done} из ${values.length}`);
 }
 
 function addTyping() {
@@ -796,8 +840,7 @@ function safariBrowser() {
 }
 
 function canLoadModel() {
-  if (!currentModel().repo) return false;
-  return !(currentModel().id === "qwen3" && (phoneScreen() || safariBrowser()));
+  return modelAllowed(currentModel());
 }
 
 function afterBoot() {
@@ -1693,11 +1736,8 @@ function windowAnswer(q) {
 
 function fallbackAnswer() {
   const name = userName || "";
-  if (currentModel().id === "qwen3" && (phoneScreen() || safariBrowser())) {
-    return `${name ? name + ", " : ""}Qwen3 в этом окне не запускается. Открой страницу в Chrome на компьютере.`;
-  }
-  if (currentModel().repo && canLoadModel() && (!ai || aiRepo !== currentModel().repo)) {
-    return named("модель не скачалась. Проверь интернет и спроси этот вопрос ещё раз.");
+  if (currentModel().repo && modelsInOrder().length && (!ai || !modelsInOrder().some(model => model.repo === aiRepo))) {
+    return named("ни одна модель не ответила. Спроси факт, задачу или «нарисуй» — это отвечу сразу.");
   }
   return `${name ? name + ", я" : "Я"} на связи. Могу написать программу, разобрать задачу, рассказать факт или нарисовать.`;
 }
@@ -2173,6 +2213,7 @@ function chooseModel(id) {
   if (!MODELS.some(item => item.id === id) || id === modelId) return;
   modelId = id;
   localStorage.setItem(MODEL_KEY, id);
+  loadToken += 1;
   ai = null;
   aiRepo = "";
   loadingPromise = null;
