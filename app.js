@@ -350,7 +350,7 @@ function addMessageToScreen(role, content, image, index) {
     text.className = "message-text";
     fillMessage(text, content);
     body.appendChild(text);
-    if (role === "assistant" && typeof index === "number") {
+    if (role === "user" && typeof index === "number") {
       const edit = document.createElement("button");
       edit.type = "button";
       edit.className = "message-edit";
@@ -749,49 +749,8 @@ function loadNotes() {
   }
 }
 
-const CORRECT_KEY = "pupik_corrections";
-
-function normQuestion(text) {
-  return String(text || "")
-    .toLowerCase()
-    .replace(/ё/g, "е")
-    .replace(/[^\p{L}\p{N}\s]+/gu, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function loadCorrections() {
-  try {
-    const saved = JSON.parse(localStorage.getItem(CORRECT_KEY) || "[]");
-    return Array.isArray(saved) ? saved.filter(item => item && item.q && item.a) : [];
-  } catch {
-    return [];
-  }
-}
-
-function saveCorrection(question, answer) {
-  const q = normQuestion(question);
-  if (!q || !answer) return;
-  const items = loadCorrections().filter(item => item.q !== q);
-  items.unshift({ q, a: answer });
-  localStorage.setItem(CORRECT_KEY, JSON.stringify(items.slice(0, 40)));
-}
-
-function correctedAnswer(question) {
-  const q = normQuestion(question);
-  if (!q) return "";
-  return loadCorrections().find(item => item.q === q)?.a || "";
-}
-
-function questionBefore(index) {
-  for (let i = index - 1; i >= 0; i -= 1) {
-    if (chatHistory[i]?.role === "user") return chatHistory[i].content || "";
-  }
-  return "";
-}
-
 function beginEdit(index, textNode, button) {
-  if (generating || !chatHistory[index]) return;
+  if (generating || chatHistory[index]?.role !== "user") return;
   const original = chatHistory[index].content || "";
   const draft = document.createElement("textarea");
   draft.className = "message-draft";
@@ -812,12 +771,7 @@ function beginEdit(index, textNode, button) {
       renderMessages();
       return;
     }
-    chatHistory[index].content = next;
-    const question = questionBefore(index);
-    if (question) saveCorrection(question, next);
-    saveCurrentChat();
-    renderMessages();
-    if (voiceOn()) speakReply(next);
+    sendMessage(next, index);
   });
   cancel.addEventListener("click", () => renderMessages());
   textNode.replaceWith(draft);
@@ -1695,8 +1649,9 @@ function imageFollowUp(question) {
   return `${last.content} ${question}`;
 }
 
-async function sendMessage(text) {
+async function sendMessage(text, replaceAt) {
   const question = text.trim();
+  const editing = Number.isInteger(replaceAt) && chatHistory[replaceAt]?.role === "user";
 
   if (!question || generating) return;
 
@@ -1719,12 +1674,19 @@ async function sendMessage(text) {
 
   welcome.style.display = "none";
 
-  chatHistory.push({
-    role: "user",
-    content: question
-  });
-
-  addMessageToScreen("user", question);
+  if (editing) {
+    chatHistory[replaceAt].content = question;
+    chatHistory.splice(replaceAt + 1);
+    const chat = chats.find(item => item.id === currentChatId);
+    if (chat && replaceAt === 0) chat.title = question.slice(0, 32);
+    renderMessages();
+  } else {
+    chatHistory.push({
+      role: "user",
+      content: question
+    });
+    addMessageToScreen("user", question, "", chatHistory.length - 1);
+  }
   saveCurrentChat();
   addTyping();
 
@@ -1732,13 +1694,10 @@ async function sendMessage(text) {
     let answer = "";
     let image = "";
 
-    const fixed = correctedAnswer(question);
-    const follow = fixed ? "" : imageFollowUp(question);
-    const job = fixed ? null : computerTask(question);
-    const official = fixed || job || wantsImage(question) || follow ? "" : await answerOfficialLink(question);
-    if (fixed) {
-      answer = fixed;
-    } else if (official) {
+    const follow = imageFollowUp(question);
+    const job = computerTask(question);
+    const official = (!job && !(wantsImage(question) || follow)) ? await answerOfficialLink(question) : "";
+    if (official) {
       answer = official;
     } else if (job) {
       answer = computerReply(job);
@@ -1784,11 +1743,9 @@ async function sendMessage(text) {
       }
     }
 
-    if (!fixed) {
-      if (!answer && !image) answer = await qwenAnswer();
-      if (!answer && !image) answer = fallbackAnswer();
-      answer = decorateReply(question, asAgent(question, answer), Boolean(image));
-    }
+    if (!answer && !image) answer = await qwenAnswer();
+    if (!answer && !image) answer = fallbackAnswer();
+    answer = decorateReply(question, asAgent(question, answer), Boolean(image));
 
     removeTyping();
 
