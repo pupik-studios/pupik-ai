@@ -354,7 +354,7 @@ function addMessageToScreen(role, content, image, index) {
       const edit = document.createElement("button");
       edit.type = "button";
       edit.className = "message-edit";
-      edit.textContent = "Править";
+      edit.textContent = "Редактировать";
       edit.addEventListener("click", () => beginEdit(index, text, edit));
       body.appendChild(edit);
     }
@@ -1266,7 +1266,7 @@ function localAnswer(question) {
     return `${name ? `Привет, ${name}` : "Привет"}. Я твой помощник: могу написать программу, рассказать факт, поучить русскому и нарисовать.${noteText()}`;
   }
   if (/х[еэ]л+[оа]?уин|halloween/.test(q)) {
-    return named("сегодня Хэллоуин, 31 октября. Вечером ставят фонари из тыквы, надевают костюмы и ходят за сладостями. Праздник пришёл из Ирландии, а название — от кануна Дня всех святых.");
+    return named("Хэллоуин был 31 октября, он уже прошёл. В тот вечер ставят фонари из тыквы, надевают костюмы и ходят за сладостями. Праздник пришёл из Ирландии, а название — от кануна Дня всех святых.");
   }
   const puzzle = puzzleTurn(q);
   if (puzzle) return puzzle;

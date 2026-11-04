@@ -306,14 +306,6 @@ button {
   flex-direction: column;
 }
 
-.halloween-mark {
-  margin-left: 10px;
-  color: #ff9a3c;
-  font-size: 13px;
-  font-weight: 800;
-  letter-spacing: 0.02em;
-}
-
 .topbar {
   display: flex;
   align-items: center;
@@ -490,10 +482,10 @@ button {
 .message-save {
   margin-top: 8px;
   padding: 6px 12px;
-  border: 1px solid #45465a;
+  border: 1px solid #6d63a8;
   border-radius: 999px;
-  background: transparent;
-  color: #c8c6d4;
+  background: #2a2640;
+  color: #eee;
   font: inherit;
   font-size: 12px;
   font-weight: 700;
@@ -889,10 +881,6 @@ button {
   .menu-button {
     min-width: 44px;
     min-height: 44px;
-  }
-
-  .halloween-mark span {
-    display: none;
   }
 
   .composer-area {
