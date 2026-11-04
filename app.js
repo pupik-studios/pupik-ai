@@ -1499,7 +1499,9 @@ function schoolAnswer(q) {
 
 Александр Сергеевич Пушкин, 1799–1837. В школе читают сказки, стихи и «Евгения Онегина»: по ним видно, как устроен русский стих и как говорят о любви, долге и свободе.
 
-Коротко: без Пушкина не понять, откуда взялся сегодняшний русский язык.`);
+Коротко: без Пушкина не понять, откуда взялся сегодняшний русский язык.
+
+https://ru.wikipedia.org/wiki/Пушкин,_Александр_Сергеевич`);
 }
 
 function knownDefinition(q) {
@@ -1700,11 +1702,52 @@ async function wikiDefine(question) {
   }
 }
 
+function topicWords(text) {
+  return String(text || "")
+    .toLowerCase()
+    .replace(/ё/g, "е")
+    .replace(/ссылк[а-я]*|официальн[а-я]*|сайт[а-я]*|дай|скинь|пришли|нужн[а-я]*|почему|зачем|учили|учат|учит|школ[а-я]*|мне|про|это|что|такое/g, " ")
+    .replace(/[^а-яa-z0-9]+/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+async function wikiArticle(topic) {
+  const opened = await withTimeout(wikiJson("https://ru.wikipedia.org/w/api.php", {
+    action: "opensearch",
+    search: topic,
+    limit: "1",
+    namespace: "0",
+    format: "json",
+    origin: "*"
+  }), 8000);
+  const title = opened?.[1]?.[0] || "";
+  const link = opened?.[3]?.[0] || "";
+  if (!link || !titleFits(topic, title)) return "";
+  return link;
+}
+
 async function answerOfficialLink(question) {
   const q = question.toLowerCase().replace(/ё/g, "е");
   const previous = recentUserTexts(1)[0] || "";
   const followLink = /ссылк|официальн/.test(previous) && /^(?:на\s+)?[\p{L}\d][\p{L}\d .+-]{0,40}$/u.test(q.trim());
+  const bare = /^(?:дай\s+|скинь\s+|пришли\s+|нужна\s+)?ссылк[а-я]*[.!?]*$/.test(q.trim());
   if (!/ссылк|официальн[а-я]*\s+сайт/.test(q) && !followLink) return "";
+  const blob = [q, ...recentUserTexts(4)].join(" ");
+  if (/пушкин/.test(bare ? blob : q)) {
+    return named("вот ссылка на Александра Пушкина: https://ru.wikipedia.org/wiki/Пушкин,_Александр_Сергеевич");
+  }
+  if (bare) {
+    const topic = topicWords(previous) || topicWords(q);
+    if (!topic) return named("напиши, на что нужна ссылка.");
+    try {
+      const link = await wikiArticle(topic);
+      if (link) return named(`вот ссылка: ${link}`);
+    } catch (error) {
+      console.warn("Ссылка не нашлась:", error);
+    }
+    return named(`не нашёл ссылку на «${topic}».`);
+  }
   const target = linkTarget(q);
   const source = target || (followLink ? q.replace(/^на\s+/, "").trim() : "") || recentUserTexts(4).map(linkTarget).find(Boolean) || "";
   if (!source) return named("напиши, на что нужна ссылка.");
