@@ -126,11 +126,19 @@ function modelGarbage(text) {
   if (/не могу решить|теряюсь|превращен|тупост|какое-то странное|недоразумени/.test(clean)) return true;
   const words = clean.replace(/[^a-zа-я0-9]+/gi, " ").split(/\s+/).filter(Boolean);
   if (words.some(weirdWord)) return true;
-  if (words.length < 8) return false;
   const counts = new Map();
   for (const word of words) counts.set(word, (counts.get(word) || 0) + 1);
-  const top = Math.max(...counts.values());
-  return top >= 6 && top / words.length >= 0.3;
+  const top = words.length ? Math.max(...counts.values()) : 0;
+  if (top >= 5) return true;
+  return words.length >= 8 && top / words.length >= 0.3;
+}
+
+function unreadable(text) {
+  const raw = String(text || "").trim();
+  if (raw.length < 12 || /\s/.test(raw)) return false;
+  const digits = (raw.match(/\d/g) || []).length;
+  const letters = (raw.match(/[а-яa-z]/gi) || []).length;
+  return digits >= 3 && letters >= 6;
 }
 
 function cleanModelText(text) {
@@ -1402,6 +1410,10 @@ function localAnswer(question) {
   }
   if (/люблю футбол|играю в футбол/.test(q)) {
     remember("любит футбол");
+  }
+
+  if (unreadable(question)) {
+    return named("не разобрал эту строку. Напиши вопрос словами.");
   }
 
   if (/кто создател|кто создал|кто автор|who created|who made/.test(q)) {
