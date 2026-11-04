@@ -1456,9 +1456,29 @@ function localAnswer(question) {
   const game = gameAnswer(q) || gameFollowUp(q);
   if (game) return game;
 
+  const defined = knownDefinition(q);
+  if (defined) return defined;
+
   const solved = trySolve(question);
   if (solved?.answer && !/нарисуй/.test(q)) return solved.answer;
 
+  return "";
+}
+
+function definitionTopic(q) {
+  const match = q.match(/^(?:что такое|что это(?:\s+за)?|what is)\s+(.+)$/);
+  if (!match) return "";
+  return match[1].replace(/[?!.]+$/g, "").trim();
+}
+
+function knownDefinition(q) {
+  const topic = definitionTopic(q);
+  if (!topic) return "";
+  if (/инженерн/.test(topic) && /экономик/.test(topic)) {
+    return named(`инженерная экономика — это выбор инженерного решения по деньгам. Сравнивают варианты: сколько стоит сделать, сколько принесёт и когда окупится.
+
+Смотрят затраты, выгоду и срок окупаемости. Учитывают, что деньги сегодня дороже денег потом. Берут вариант, который выгоднее за всё время, а не просто самый дешёвый в начале.`);
+  }
   return "";
 }
 
@@ -1594,6 +1614,59 @@ async function officialSite(name) {
   const url = claims?.[0]?.mainsnak?.datavalue?.value;
   if (!url || !/^https?:\/\//i.test(url)) return null;
   return { name: hit.label || title, url: url.replace(/^http:\/\//i, "https://") };
+}
+
+function titleFits(topic, title) {
+  const norm = value => value.toLowerCase().replace(/ё/g, "е").replace(/[^a-zа-я0-9]+/gi, " ").trim();
+  const asked = norm(topic);
+  const found = norm(title);
+  if (!asked || !found) return false;
+  if (found.includes(asked) || asked.includes(found)) return true;
+  const words = asked.split(" ").filter(word => word.length > 3);
+  return words.length > 0 && words.every(word => found.includes(word));
+}
+
+function firstSentences(text) {
+  const clean = String(text || "").replace(/\s+/g, " ").trim();
+  const short = clean.split(/(?<=[.!?])\s+/).slice(0, 2).join(" ");
+  if (short.length <= 420) return short;
+  return short.slice(0, 420).replace(/\s+\S*$/, "") + "…";
+}
+
+async function wikiDefine(question) {
+  const q = question.toLowerCase().replace(/ё/g, "е");
+  const topic = definitionTopic(q);
+  if (!topic || topic.length < 2 || knownDefinition(q)) return "";
+  try {
+    const opened = await withTimeout(wikiJson("https://ru.wikipedia.org/w/api.php", {
+      action: "opensearch",
+      search: topic,
+      limit: "1",
+      namespace: "0",
+      format: "json",
+      origin: "*"
+    }), 8000);
+    const title = opened?.[1]?.[0] || "";
+    const link = opened?.[3]?.[0] || "";
+    if (!titleFits(topic, title)) return "";
+    const page = await withTimeout(wikiJson("https://ru.wikipedia.org/w/api.php", {
+      action: "query",
+      prop: "extracts",
+      exintro: "1",
+      explaintext: "1",
+      redirects: "1",
+      format: "json",
+      origin: "*",
+      titles: title
+    }), 8000);
+    const pages = page?.query?.pages || {};
+    const extract = firstSentences(Object.values(pages)[0]?.extract || "");
+    if (extract.length < 40) return "";
+    return named(`${extract}${link ? `\n\n${link}` : ""}`);
+  } catch (error) {
+    console.warn("Определение не нашлось:", error);
+    return "";
+  }
 }
 
 async function answerOfficialLink(question) {
@@ -1914,6 +1987,11 @@ async function sendMessage(text, replaceAt) {
       }
     }
 
+    if (!answer && !image && definitionTopic(question.toLowerCase().replace(/ё/g, "е"))) {
+      stageLabel = "Ищу определение";
+      showProgress(24, stageLabel);
+      answer = await wikiDefine(question);
+    }
     if (!answer && !image) answer = await qwenAnswer();
     if (!answer && !image) answer = fallbackAnswer();
     answer = decorateReply(question, asAgent(question, answer), Boolean(image));
