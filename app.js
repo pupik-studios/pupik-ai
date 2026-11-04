@@ -4,8 +4,9 @@ import { trySolve } from "./knowledge.js?v=20";
 
 const MODELS = [
   { id: "pupik", label: "Pupik AI", repo: "" },
-  { id: "qwen3", label: "Qwen3 4B", repo: "onnx-community/Qwen3-4B-Instruct-2507-ONNX" },
-  { id: "qwen15", label: "Qwen 2.5 1.5B", repo: "onnx-community/Qwen2.5-1.5B-Instruct" }
+  { id: "qwen05", label: "Qwen 2.5 0.5B", repo: "onnx-community/Qwen2.5-0.5B-Instruct" },
+  { id: "qwen15", label: "Qwen 2.5 1.5B", repo: "onnx-community/Qwen2.5-1.5B-Instruct" },
+  { id: "qwen3", label: "Qwen3 4B", repo: "onnx-community/Qwen3-4B-Instruct-2507-ONNX" }
 ];
 const MODEL_KEY = "pupik_model";
 let modelId = localStorage.getItem(MODEL_KEY) || "qwen3";
@@ -36,11 +37,22 @@ function modelAllowed(model) {
   return !(model.id === "qwen3" && (phoneScreen() || safariBrowser()));
 }
 
-function modelsInOrder() {
+function fastModel() {
+  return MODELS.find(item => item.id === "qwen05");
+}
+
+function answerModel() {
+  const loaded = MODELS.find(item => item.repo && item.repo === aiRepo);
+  if (loaded && modelAllowed(loaded)) return loaded;
   const selected = currentModel();
-  if (!selected.repo) return [];
-  const rest = MODELS.filter(item => item.repo && item.id !== selected.id);
-  return [selected, ...rest].filter(modelAllowed);
+  if (selected.id === "qwen05" || selected.id === "qwen15") return selected;
+  return fastModel();
+}
+
+function modelsInOrder() {
+  if (!currentModel().repo) return [];
+  const model = answerModel();
+  return model && modelAllowed(model) ? [model] : [];
 }
 
 function loadAI(model = currentModel()) {
@@ -162,7 +174,7 @@ async function generateWith(model) {
       { role: "system", content: systemPrompt() },
       ...modelTurns()
     ], {
-      max_new_tokens: 220,
+      max_new_tokens: 120,
       temperature: 0.7,
       do_sample: true,
       top_k: 20,
@@ -182,6 +194,7 @@ async function qwenAnswer() {
   for (const model of modelsInOrder()) {
     stageLabel = model.label;
     fileProgress.clear();
+    fileBytes.clear();
     if (!(ai && aiRepo === model.repo)) {
       progressValue = Math.max(progressValue, 8);
       showProgress(progressValue, stageLabel);
@@ -563,6 +576,7 @@ let progressValue = 0;
 let loadMoved = 0;
 let sawFileProgress = false;
 const fileProgress = new Map();
+const fileBytes = new Map();
 
 function showProgress(percent, caption) {
   let box = document.getElementById("typing");
@@ -586,6 +600,7 @@ function showProgress(percent, caption) {
 function startAnswerProgress() {
   window.clearInterval(progressTimer);
   fileProgress.clear();
+  fileBytes.clear();
   progressValue = 8;
   stageLabel = "Смотрю ответ";
   showProgress(progressValue, stageLabel);
@@ -610,15 +625,23 @@ function noteModelProgress(info) {
   }
   if (!generating || !info) return;
   const name = info.file || "model";
-  if (info.status === "done") fileProgress.set(name, 100);
-  else if (typeof info.progress === "number") fileProgress.set(name, info.progress);
-  else return;
-  const values = [...fileProgress.values()];
-  if (!values.length) return;
-  const average = values.reduce((sum, item) => sum + item, 0) / values.length;
-  const done = values.filter(item => item >= 100).length;
-  progressValue = Math.max(4, Math.min(99, average));
-  showProgress(progressValue, `${stageLabel} · ${done} из ${values.length}`);
+  const total = Number(info.total) || 0;
+  const loaded = Number(info.loaded) || 0;
+  if (info.status === "done" && total > 0) fileBytes.set(name, { loaded: total, total });
+  else if (total > 0) fileBytes.set(name, { loaded: Math.min(loaded, total), total });
+  else if (typeof info.progress === "number") {
+    const pct = info.progress <= 1 ? info.progress * 100 : info.progress;
+    fileBytes.set(name, { loaded: pct, total: 100 });
+  } else return;
+  let loadedSum = 0;
+  let totalSum = 0;
+  for (const item of fileBytes.values()) {
+    loadedSum += item.loaded;
+    totalSum += item.total;
+  }
+  if (!totalSum) return;
+  progressValue = Math.max(4, Math.min(99, loadedSum / totalSum * 100));
+  showProgress(progressValue, `${stageLabel} · ${Math.round(progressValue)}%`);
 }
 
 function addTyping() {
@@ -844,7 +867,8 @@ function canLoadModel() {
 }
 
 function afterBoot() {
-  if (canLoadModel()) loadAI();
+  const first = currentModel().repo ? answerModel() : null;
+  if (first && modelAllowed(first)) loadAI(first);
   if (!userName) {
     if (boot) boot.hidden = true;
     if (register) {
@@ -2219,7 +2243,8 @@ function chooseModel(id) {
   loadingPromise = null;
   loadingRepo = "";
   modelFailed = false;
-  if (canLoadModel()) loadAI();
+  const first = answerModel();
+  if (first && modelAllowed(first)) loadAI(first);
   syncAgent();
 }
 
