@@ -246,7 +246,9 @@ function clearCurrentChat() {
   if (chat) {
     chat.messages = [];
     chat.title = "Новый чат";
+    delete chat.pendingPuzzle;
   }
+  try { sessionStorage.removeItem(PUZZLE_KEY); } catch { /* storage off */ }
 
   saveChats();
   renderHistory();
@@ -1223,26 +1225,61 @@ function puzzleBank() {
   ];
 }
 
-function puzzleTurn(q) {
-  const saved = sessionStorage.getItem(PUZZLE_KEY);
-  if (saved && !/придумай|задач|кто так|ссылк|нарисуй/.test(q)) {
-    let puzzle;
-    try { puzzle = JSON.parse(saved); } catch { puzzle = null; }
-    if (puzzle) {
-      const guess = q.trim().replace(/[.!?]+$/g, "");
-      const norm = value => value.toLowerCase().replace(/ё/g, "е").replace(/\s+/g, "");
-      const hit = (puzzle.alts || []).some(item => norm(guess) === norm(item));
-      const numeric = puzzle.kind === "number" && /^\d+$/.test(guess.replace(/\s+/g, ""));
-      if (hit || numeric) {
-        sessionStorage.removeItem(PUZZLE_KEY);
-        return named(hit ? `верно. Ответ: ${puzzle.answer}.` : `пока не то. Ответ: ${puzzle.answer}.`);
-      }
-    }
-  }
-  if (!/придумай|сочини|дай|сложн/.test(q) || !/задач|головолом|пример/.test(q)) return "";
+function currentChat() {
+  return chats.find(item => item.id === currentChatId) || null;
+}
+
+function rememberPuzzle(puzzle) {
+  const chat = currentChat();
+  if (chat) chat.pendingPuzzle = puzzle;
+  try { sessionStorage.setItem(PUZZLE_KEY, JSON.stringify(puzzle)); } catch { /* storage off */ }
+}
+
+function clearPuzzle() {
+  const chat = currentChat();
+  if (chat) delete chat.pendingPuzzle;
+  try { sessionStorage.removeItem(PUZZLE_KEY); } catch { /* storage off */ }
+}
+
+function puzzleFromHistory() {
   const bank = puzzleBank();
-  const puzzle = bank[Math.floor(Math.random() * bank.length)];
-  sessionStorage.setItem(PUZZLE_KEY, JSON.stringify(puzzle));
+  for (let i = chatHistory.length - 1; i >= 0; i -= 1) {
+    const item = chatHistory[i];
+    if (item.role !== "assistant") continue;
+    if (/верно\. Ответ:|пока не то/.test(item.content)) return null;
+    const found = bank.find(puzzle => item.content.includes(puzzle.ask));
+    if (found) return found;
+    if (/большой модели|не скачалась|модель не скачалась|на связи/.test(item.content)) continue;
+    return null;
+  }
+  return null;
+}
+
+function openPuzzle() {
+  const pending = currentChat()?.pendingPuzzle;
+  if (pending?.ask) return pending;
+  return puzzleFromHistory();
+}
+
+function gradePuzzle(puzzle, q) {
+  const guess = q.trim().replace(/[.!?]+$/g, "");
+  const norm = value => value.toLowerCase().replace(/ё/g, "е").replace(/\s+/g, "");
+  const hit = (puzzle.alts || []).some(item => norm(guess) === norm(item));
+  const numeric = puzzle.kind === "number" && /^\d+$/.test(guess.replace(/\s+/g, ""));
+  if (!hit && !numeric) return "";
+  clearPuzzle();
+  return named(hit ? `верно. Ответ: ${puzzle.answer}.` : `пока не то. Ответ: ${puzzle.answer}.`);
+}
+
+function puzzleTurn(q) {
+  const fresh = /придумай|сочини|дай|сложн/.test(q) && /задач|головолом|пример/.test(q);
+  if (!fresh && !/кто так|ссылк|нарисуй/.test(q)) {
+    const graded = gradePuzzle(openPuzzle() || {}, q);
+    if (graded) return graded;
+  }
+  if (!fresh) return "";
+  const puzzle = puzzleBank()[Math.floor(Math.random() * puzzleBank().length)];
+  rememberPuzzle(puzzle);
   return named(`держи задачу.\n\n${puzzle.ask}\n\nНапиши ответ одним сообщением — проверю.`);
 }
 
