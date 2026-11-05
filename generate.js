@@ -1,6 +1,6 @@
 /**
- * Pupik AI — локальная генерация рисунка.
- * Модель рисует в браузере, без поиска фото.
+ * Pupik AI — рисунок по запросу.
+ * Картинка генерируется, а не ищется в фотоархиве.
  */
 
 const W = 640;
@@ -1340,8 +1340,6 @@ function stampPupik(img) {
 }
 
 let onImageProgress = () => {};
-let painter = null;
-let painting = null;
 
 export function setImageProgress(fn) {
   onImageProgress = typeof fn === "function" ? fn : () => {};
@@ -1364,59 +1362,21 @@ async function modelPrompt(prompt) {
   return `realistic photo of ${scene}`;
 }
 
-async function localPainter() {
-  if (painter) return painter;
-  if (!navigator.gpu) throw new Error("no webgpu");
-  if (!painting) {
-    painting = (async () => {
-      const ortMod = await import("https://cdn.jsdelivr.net/npm/onnxruntime-web@1.21.0/dist/ort.webgpu.min.mjs");
-      const ort = ortMod.default ?? ortMod;
-      const wasmPaths = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.21.0/dist/";
-      if (ort.env?.wasm) ort.env.wasm.wasmPaths = wasmPaths;
-      const lib = await import("https://cdn.jsdelivr.net/npm/web-txt2img@0.3.1/dist/index.js");
-      const { AutoTokenizer, env } = await import("https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1");
-      env.allowLocalModels = false;
-      const loaded = await lib.loadModel("sd-turbo", {
-        backendPreference: ["webgpu"],
-        ort,
-        wasmPaths,
-        tokenizerProvider: async () => {
-          const tok = await AutoTokenizer.from_pretrained("Xenova/clip-vit-base-patch16");
-          tok.pad_token_id = 0;
-          return (text, opts) => tok(text, opts);
-        },
-        onProgress: event => {
-          const pct = typeof event?.pct === "number" ? event.pct : 8;
-          onImageProgress(Math.max(8, Math.min(99, pct)), "Рисую");
-        }
-      });
-      if (!loaded?.ok) throw new Error(loaded?.message || "model");
-      painter = lib;
-      return lib;
-    })().catch(error => {
-      painting = null;
-      throw error;
-    });
-  }
-  return painting;
-}
-
 async function generatedPhoto(prompt) {
-  const lib = await localPainter();
-  onImageProgress(70, "Рисую");
-  const result = await lib.generateImage({
-    model: "sd-turbo",
-    prompt: await modelPrompt(prompt),
-    seed: hash(normalize(prompt)) % 1000000,
-    width: 512,
-    height: 512
-  });
-  if (!result?.ok || !result.blob) throw new Error(result?.message || "draw");
-  const url = URL.createObjectURL(result.blob);
+  onImageProgress(35, "Рисую");
+  const scene = await modelPrompt(prompt);
+  const seed = photoTurn();
+  const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(scene)}?width=768&height=512&seed=${seed}&model=flux&nologo=true`;
+  const response = await fetch(url);
+  if (response.status === 402) throw new Error("подожди полминуты и попроси рисунок ещё раз");
+  if (!response.ok || !/image/i.test(response.headers.get("content-type") || "")) throw new Error("draw");
+  const blob = await response.blob();
+  const objectUrl = URL.createObjectURL(blob);
   try {
-    return stampPupik(await loadImage(url));
+    onImageProgress(90, "Рисую");
+    return stampPupik(await loadImage(objectUrl));
   } finally {
-    URL.revokeObjectURL(url);
+    URL.revokeObjectURL(objectUrl);
   }
 }
 
