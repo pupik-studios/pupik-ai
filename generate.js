@@ -273,14 +273,14 @@ function drawBeaver(ctx) {
   // Земля и лужайка
   ground(ctx, "#80b96d");
 
-  // Большой плоский хвост
-  ellipse(ctx, 420, 365, 100, 39, "#60402f", -0.18);
+  // Большой плоский хвост, по нему бобра и узнают
+  ellipse(ctx, 455, 372, 145, 34, "#60402f", -0.08);
 
   ctx.strokeStyle = "#3e2b23";
   ctx.lineWidth = 3;
 
-  for (let i = 0; i < 5; i++) {
-    line(ctx, 360 + i * 22, 350 - i * 3, 370 + i * 22, 382 - i * 3, "#3e2b23", 2);
+  for (let i = 0; i < 6; i++) {
+    line(ctx, 390 + i * 22, 358 - i * 2, 404 + i * 22, 388 - i * 2, "#3e2b23", 2);
   }
 
   // Лапы
@@ -312,7 +312,7 @@ function drawBeaver(ctx) {
   eyes(ctx, 306, 201, 45);
 
   // Передние зубы
-  ctx.fillStyle = "#fff8dc";
+  ctx.fillStyle = "#f4a024";
   ctx.fillRect(297, 255, 10, 19);
   ctx.fillRect(308, 255, 10, 19);
 
@@ -1394,7 +1394,11 @@ async function modelPrompt(prompt) {
   if (dance && /\bcat\b/.test(scene)) scene = "three fluffy kittens dancing on their hind legs";
   else if (dance) scene = `${scene} dancing`;
   else if (scene === "cat") scene = "a single ginger kitten sitting and looking at the camera";
-  return `${scene}, adorable fluffy character, big glossy eyes, soft golden cinematic light, highly detailed fur, warm background, cute vertical portrait`;
+  const cute = /kitten|\bcat\b/.test(scene);
+  const style = cute
+    ? "adorable fluffy character, big glossy eyes, soft golden cinematic light, highly detailed fur, warm background, cute vertical portrait"
+    : "the real animal with its usual body and features, natural colors, soft light, full body in frame, no text, no watermark";
+  return `${scene}, ${style}`;
 }
 
 async function generatedPhoto(prompt) {
@@ -1406,7 +1410,7 @@ async function generatedPhoto(prompt) {
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
       const response = await fetch(url);
-      if (response.status === 402) {
+      if (response.status === 402 || response.status === 503) {
         const data = await response.json().catch(() => ({}));
         const wait = Math.min(50, Number(String(data?.error?.message || "").match(/(\d+)\s*s/)?.[1] || 46) + 1);
         if (attempt === 0) {
@@ -1446,8 +1450,10 @@ async function generatedPhoto(prompt) {
 
 export async function generateImage(prompt, options = {}) {
   if (typeof document === "undefined") throw new Error("no photo");
-  if (options.quick) {
-    return { dataUrl: stampPupik(await loadImage(paintDrawing(prompt))), theme: "drawing" };
+  // Бесплатная модель на «бобр» рисует лису. Бобра собираем сами: хвост и зубы.
+  const beaver = photoSubjects(prompt).some(item => item.query === "beaver");
+  if (options.quick || beaver) {
+    return { dataUrl: stampPupik(await loadImage(paintDrawing(prompt))), theme: beaver ? "beaver" : "drawing" };
   }
   return { dataUrl: await generatedPhoto(prompt), theme: "photo" };
 }
