@@ -68,7 +68,7 @@ function detectTheme(prompt) {
     },
     {
       id: "fox",
-      words: ["лиса", "лису", "лис", "fox"],
+      words: ["лиса", "лису", "лисы", "лисе", "лисой", "лисен", "fox"],
       bg: "#d8edff",
       fur: "#e87532"
     },
@@ -1363,6 +1363,7 @@ async function modelPrompt(prompt) {
   }
   if (dance && /\bcat\b/.test(scene)) scene = "three fluffy kittens dancing on their hind legs";
   else if (dance) scene = `${scene} dancing`;
+  else if (scene === "cat") scene = "a single ginger kitten sitting and looking at the camera";
   return `${scene}, adorable fluffy character, big glossy eyes, soft golden cinematic light, highly detailed fur, warm background, cute vertical portrait`;
 }
 
@@ -1371,27 +1372,35 @@ async function generatedPhoto(prompt) {
   const scene = await modelPrompt(prompt);
   const seed = photoTurn();
   const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(scene)}?width=768&height=1152&seed=${seed}&model=flux&nologo=true`;
-  const response = await fetch(url);
-  if (response.status === 402) throw new Error("подожди полминуты и попроси рисунок ещё раз");
-  if (!response.ok || !/image/i.test(response.headers.get("content-type") || "")) throw new Error("draw");
-  const blob = await response.blob();
-  const objectUrl = URL.createObjectURL(blob);
-  try {
-    onImageProgress(90, "Рисую");
-    return stampPupik(await loadImage(objectUrl));
-  } finally {
-    URL.revokeObjectURL(objectUrl);
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const response = await fetch(url, { referrerPolicy: "no-referrer" });
+    if (response.status === 402) {
+      const data = await response.json().catch(() => ({}));
+      const wait = Math.min(50, Number(String(data?.error?.message || "").match(/(\d+)\s*s/)?.[1] || 46) + 1);
+      if (attempt === 0) {
+        onImageProgress(50, "Рисую");
+        await new Promise(resolve => setTimeout(resolve, wait * 1000));
+        continue;
+      }
+      throw new Error("подожди полминуты и попроси рисунок ещё раз");
+    }
+    if (!response.ok || !/image/i.test(response.headers.get("content-type") || "")) throw new Error("draw");
+    const blob = await response.blob();
+    const objectUrl = URL.createObjectURL(blob);
+    try {
+      onImageProgress(90, "Рисую");
+      return stampPupik(await loadImage(objectUrl));
+    } finally {
+      URL.revokeObjectURL(objectUrl);
+    }
   }
+  throw new Error("draw");
 }
 
 export async function generateImage(prompt, options = {}) {
   if (typeof document === "undefined") throw new Error("no photo");
-  if (!options.quick) {
-    try {
-      return { dataUrl: await generatedPhoto(prompt), theme: "photo" };
-    } catch (error) {
-      console.warn("Генерация не вышла:", error);
-    }
+  if (options.quick) {
+    return { dataUrl: stampPupik(await loadImage(paintDrawing(prompt))), theme: "drawing" };
   }
-  return { dataUrl: stampPupik(await loadImage(paintDrawing(prompt))), theme: "drawing" };
+  return { dataUrl: await generatedPhoto(prompt), theme: "photo" };
 }
