@@ -1,5 +1,5 @@
 
-import { generateImage, wantsImage, extractImagePrompt, photoSubjects, setImageProgress } from "./generate.js?v=57";;
+import { generateImage, wantsImage, extractImagePrompt, photoSubjects, setImageProgress } from "./generate.js?v=57";
 import { trySolve } from "./knowledge.js?v=20";
 
 const MODELS = [
@@ -57,7 +57,7 @@ function modelsInOrder() {
 
 function loadAI(model = currentModel()) {
   const repo = model?.repo || "";
-  if (!modelAllowed(model)) return Promise.resolve(null);
+  if (onTablet() || !modelAllowed(model)) return Promise.resolve(null);
   if (ai && aiRepo === repo) return Promise.resolve(ai);
   if (loadingPromise && loadingRepo === repo) return loadingPromise;
   const token = ++loadToken;
@@ -2361,6 +2361,10 @@ function onTablet() {
 
 async function startHearing() {
   if (speaking || generating || voiceBlocked || micPaused || micOpening) return;
+  if (onTablet()) {
+    setVoicePhase("listen", "На iPad Safari не отдаёт речь. Напиши текстом.");
+    return;
+  }
   if (!SpeechRecognition) {
     setVoicePhase("listen", onTablet()
       ? "На iPad Safari не отдаёт речь. Напиши текстом."
@@ -2576,6 +2580,16 @@ voiceMode?.addEventListener("click", () => {
   }
   syncAgent();
   if (next) openVoice();
+});
+document.getElementById("welcomePlay")?.addEventListener("click", event => {
+  const video = document.createElement("video");
+  video.className = "welcome-video";
+  video.controls = true;
+  video.playsInline = true;
+  video.preload = "none";
+  video.src = "pupik-ai.mp4?v=1";
+  event.currentTarget.replaceWith(video);
+  video.play().catch(() => {});
 });
 document.getElementById("voiceClose")?.addEventListener("click", () => voiceMode?.click());
 document.getElementById("voiceOrb")?.addEventListener("click", () => {
