@@ -2354,10 +2354,17 @@ async function micState() {
   }
 }
 
+function onTablet() {
+  const touch = navigator.maxTouchPoints > 1;
+  return /iPad|iPhone|iPod/.test(navigator.userAgent) || (touch && /Mac/.test(navigator.platform));
+}
+
 async function startHearing() {
   if (speaking || generating || voiceBlocked || micPaused || micOpening) return;
   if (!SpeechRecognition) {
-    setVoicePhase("listen", "В Safari голос не слышит. Открой страницу в Chrome.");
+    setVoicePhase("listen", onTablet()
+      ? "На iPad Safari не отдаёт речь. Напиши текстом."
+      : "В этом браузере голос не слышит. Напиши текстом.");
     return;
   }
   micOpening = true;
@@ -2390,7 +2397,7 @@ async function startHearing() {
     recognition = new SpeechRecognition();
     recognition.lang = "ru-RU";
     recognition.interimResults = true;
-    recognition.continuous = true;
+    recognition.continuous = !onTablet();
     recognition.onresult = event => {
       let interim = "";
       let finalText = "";
@@ -2412,7 +2419,9 @@ async function startHearing() {
         setVoicePhase("listen", "Нажми замок слева в адресе и разреши микрофон сайту.");
       } else if (event.error === "service-not-allowed" || event.error === "network") {
         micPaused = true;
-        setVoicePhase("listen", "Речь не доходит, часто мешает VPN. Напиши текстом.");
+        setVoicePhase("listen", onTablet()
+          ? "На iPad Safari не отдаёт речь. Напиши текстом."
+          : "Речь не дошла. Напиши текстом.");
       } else if (event.error !== "no-speech" && event.error !== "aborted") {
         setVoicePhase("listen", "Не расслышал. Скажи ещё раз.");
       }
