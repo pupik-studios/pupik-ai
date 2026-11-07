@@ -1022,11 +1022,30 @@ function loadImage(src, cors = false) {
   return new Promise((resolve, reject) => {
     const img = new Image();
     if (cors) img.crossOrigin = "anonymous";
-    img.referrerPolicy = "no-referrer";
+    // У blob и data Safari с no-referrer пишет Load failed и картинка пропадает.
+    if (/^https?:/i.test(src)) img.referrerPolicy = "no-referrer";
     img.onload = () => resolve(img);
-    img.onerror = reject;
+    img.onerror = () => reject(new Error("draw"));
     img.src = src;
   });
+}
+
+async function imageFromBlob(blob) {
+  if (!blob || !blob.size) throw new Error("draw");
+  if (typeof createImageBitmap === "function") {
+    try {
+      return await createImageBitmap(blob);
+    } catch (error) {
+      console.warn("Картинка не открылась:", error);
+    }
+  }
+  const dataUrl = await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(new Error("draw"));
+    reader.readAsDataURL(blob);
+  });
+  return loadImage(dataUrl);
 }
 
 function drawCover(ctx, img, x, y, width, height) {
@@ -1383,29 +1402,46 @@ async function generatedPhoto(prompt) {
   const scene = await modelPrompt(prompt);
   const seed = photoTurn();
   const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(scene)}?width=768&height=1152&seed=${seed}&model=flux&nologo=true`;
+  let lastError = new Error("draw");
   for (let attempt = 0; attempt < 2; attempt++) {
-    const response = await fetch(url, { referrerPolicy: "no-referrer" });
-    if (response.status === 402) {
-      const data = await response.json().catch(() => ({}));
-      const wait = Math.min(50, Number(String(data?.error?.message || "").match(/(\d+)\s*s/)?.[1] || 46) + 1);
-      if (attempt === 0) {
-        onImageProgress(50, "Рисую");
-        await new Promise(resolve => setTimeout(resolve, wait * 1000));
-        continue;
-      }
-      throw new Error("подожди полминуты и попроси рисунок ещё раз");
-    }
-    if (!response.ok || !/image/i.test(response.headers.get("content-type") || "")) throw new Error("draw");
-    const blob = await response.blob();
-    const objectUrl = URL.createObjectURL(blob);
     try {
+      const response = await fetch(url);
+      if (response.status === 402) {
+        const data = await response.json().catch(() => ({}));
+        const wait = Math.min(50, Number(String(data?.error?.message || "").match(/(\d+)\s*s/)?.[1] || 46) + 1);
+        if (attempt === 0) {
+          onImageProgress(50, "Рисую");
+          await new Promise(resolve => setTimeout(resolve, wait * 1000));
+          continue;
+        }
+        throw new Error("подожди полминуты и попроси рисунок ещё раз");
+      }
+      if (!response.ok || !/image/i.test(response.headers.get("content-type") || "")) throw new Error("draw");
       onImageProgress(90, "Рисую");
-      return stampPupik(await loadImage(objectUrl));
-    } finally {
-      URL.revokeObjectURL(objectUrl);
+      const picture = await imageFromBlob(await response.blob());
+      try {
+        return stampPupik(picture);
+      } finally {
+        picture.close?.();
+      }
+    } catch (error) {
+      lastError = error;
+      if (/подожди полминуты/.test(String(error?.message || ""))) throw error;
+      if (attempt === 0) {
+        try {
+          onImageProgress(70, "Рисую");
+          return stampPupik(await loadImage(url, true));
+        } catch (imageError) {
+          lastError = imageError;
+        }
+      }
     }
   }
-  throw new Error("draw");
+  const message = String(lastError?.message || "");
+  if (/load failed|failed to fetch|network/i.test(message)) {
+    throw new Error("картинка не дошла. Попроси ещё раз через полминуты.");
+  }
+  throw new Error("Не получилось нарисовать.");
 }
 
 export async function generateImage(prompt, options = {}) {

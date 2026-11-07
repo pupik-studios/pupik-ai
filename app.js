@@ -1,5 +1,5 @@
 
-import { generateImage, wantsImage, extractImagePrompt, photoSubjects, setImageProgress } from "./generate.js?v=54";
+import { generateImage, wantsImage, extractImagePrompt, photoSubjects, setImageProgress } from "./generate.js?v=55";
 import { trySolve } from "./knowledge.js?v=20";
 
 const MODELS = [
@@ -2069,8 +2069,9 @@ async function sendMessage(text, replaceAt) {
         if (story) answer = `${answer}\n\n${story}`;
       } catch (error) {
         console.warn("Фото не найдено:", error);
-        answer = error?.message && error.message !== "no photo"
-          ? error.message
+        const raw = String(error?.message || "");
+        answer = raw && raw !== "no photo" && raw !== "draw" && !/load failed|failed to fetch|network/i.test(raw)
+          ? raw
           : "Не получилось нарисовать.";
       }
       }
