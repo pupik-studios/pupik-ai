@@ -1321,21 +1321,25 @@ function drawContain(ctx, img, width, height) {
 
 function stampPupik(img) {
   const canvas = document.createElement("canvas");
-  canvas.width = W;
-  canvas.height = H;
+  const scale = Math.min(1, 768 / Math.max(1, img.width));
+  const width = Math.max(320, Math.round(img.width * scale));
+  const height = Math.max(320, Math.round(img.height * scale));
+  canvas.width = width;
+  canvas.height = height;
   const ctx = canvas.getContext("2d");
-  drawContain(ctx, img, W, H);
+  ctx.drawImage(img, 0, 0, width, height);
   const label = "PUPIK AI";
+  const size = Math.max(22, Math.round(height * 0.032));
   ctx.textAlign = "left";
   ctx.textBaseline = "bottom";
-  ctx.font = "700 22px sans-serif";
+  ctx.font = `700 ${size}px sans-serif`;
   if ("letterSpacing" in ctx) ctx.letterSpacing = "1px";
   ctx.lineJoin = "round";
-  ctx.lineWidth = 4;
+  ctx.lineWidth = Math.max(4, Math.round(size / 6));
   ctx.strokeStyle = "rgba(0,0,0,0.8)";
-  ctx.strokeText(label, 16, H - 14);
+  ctx.strokeText(label, 18, height - 16);
   ctx.fillStyle = "#ffffff";
-  ctx.fillText(label, 16, H - 14);
+  ctx.fillText(label, 18, height - 16);
   return canvas.toDataURL("image/jpeg", 0.9);
 }
 
@@ -1359,14 +1363,14 @@ async function modelPrompt(prompt) {
   }
   if (dance && /\bcat\b/.test(scene)) scene = "three fluffy kittens dancing on their hind legs";
   else if (dance) scene = `${scene} dancing`;
-  return `realistic photo of ${scene}`;
+  return `${scene}, adorable fluffy character, big glossy eyes, soft golden cinematic light, highly detailed fur, warm background, cute vertical portrait`;
 }
 
 async function generatedPhoto(prompt) {
   onImageProgress(35, "Рисую");
   const scene = await modelPrompt(prompt);
   const seed = photoTurn();
-  const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(scene)}?width=768&height=512&seed=${seed}&model=flux&nologo=true`;
+  const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(scene)}?width=768&height=1152&seed=${seed}&model=flux&nologo=true`;
   const response = await fetch(url);
   if (response.status === 402) throw new Error("подожди полминуты и попроси рисунок ещё раз");
   if (!response.ok || !/image/i.test(response.headers.get("content-type") || "")) throw new Error("draw");
