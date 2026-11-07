@@ -5,7 +5,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
   <title>Pupik AI</title>
-  <link rel="stylesheet" href="style.css?v=33">
+    <link rel="stylesheet" href="style.css?v=34">
 </head>
 <body>
 
@@ -74,6 +74,7 @@
         <div class="welcome-logo">P</div>
         <h1>Привет! Я Pupik AI</h1>
         <p>Задай вопрос — и начнём.</p>
+        <video class="welcome-video" src="pupik-ai.mp4?v=1" controls playsinline preload="metadata"></video>
 
         <div class="suggestions">
           <button class="suggestion" data-prompt="Объясни мне сложную тему простыми словами">
@@ -109,7 +110,19 @@
           <button class="suggestion" data-prompt="Расскажи что-нибудь интересное">
             <span>🌍</span>
             <strong>Узнать новое</strong>
-            <small>Интересные факты</small>
+            <small>Каждый раз новый факт</small>
+          </button>
+
+          <button class="suggestion" data-prompt="Дай новый футбольный факт">
+            <span>⚽</span>
+            <strong>Футбольный факт</strong>
+            <small>Ямаль, Мбаппе, Холанд</small>
+          </button>
+
+          <button class="suggestion" data-prompt="Расскажи крутой футбольный финт">
+            <span>⚡</span>
+            <strong>Крутой финт</strong>
+            <small>Эластико, радуга, рабона</small>
           </button>
         </div>
       </div>
@@ -163,6 +176,6 @@
   <p id="voiceCaption" class="voice-caption">Слушаю</p>
 </div>
 
-<script type="module" src="app.js?v=103"></script>
+<script type="module" src="app.js?v=104"></script>
 </body>
 </html>
