@@ -1326,20 +1326,31 @@ function stampPupik(img) {
   const height = Math.max(320, Math.round(img.height * scale));
   canvas.width = width;
   canvas.height = height;
+  const source = document.createElement("canvas");
+  source.width = width;
+  source.height = height;
+  source.getContext("2d").drawImage(img, 0, 0, width, height);
   const ctx = canvas.getContext("2d");
-  ctx.drawImage(img, 0, 0, width, height);
+  ctx.drawImage(source, 0, 0);
+  // Чужой знак сервиса сидит в правом нижнем углу. Закрываем его полом рядом.
+  const patchW = Math.round(width * 0.38);
+  const patchH = Math.max(36, Math.round(height * 0.06));
+  const x = width - patchW;
+  const y = height - patchH;
+  const sampleH = Math.max(8, Math.round(patchH * 0.4));
+  ctx.drawImage(source, x, Math.max(0, y - sampleH), patchW, sampleH, x, y, patchW, patchH);
   const label = "PUPIK AI";
-  const size = Math.max(22, Math.round(height * 0.032));
-  ctx.textAlign = "left";
+  const size = Math.max(26, Math.round(height * 0.038));
+  ctx.textAlign = "right";
   ctx.textBaseline = "bottom";
   ctx.font = `700 ${size}px sans-serif`;
   if ("letterSpacing" in ctx) ctx.letterSpacing = "1px";
   ctx.lineJoin = "round";
   ctx.lineWidth = Math.max(4, Math.round(size / 6));
-  ctx.strokeStyle = "rgba(0,0,0,0.8)";
-  ctx.strokeText(label, 18, height - 16);
+  ctx.strokeStyle = "rgba(0,0,0,0.85)";
+  ctx.strokeText(label, width - 16, height - 14);
   ctx.fillStyle = "#ffffff";
-  ctx.fillText(label, 18, height - 16);
+  ctx.fillText(label, width - 16, height - 14);
   return canvas.toDataURL("image/jpeg", 0.9);
 }
 
