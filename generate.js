@@ -1391,10 +1391,21 @@ async function modelPrompt(prompt) {
       .trim();
     scene = raw ? await toEnglish(raw) : "a landscape";
   }
+  const people = ["Cristiano Ronaldo", "Lionel Messi", "Sergio Ramos", "Ronaldinho"];
+  const person = known.find(name => people.includes(name));
+  if (person && !dance) {
+    const others = known.filter(name => name !== person);
+    const manyCats = /кот(?:ы|ами|ов|кам)|кош(?:ки|ек|кам)|котят/.test(p);
+    const company = others.includes("cat")
+      ? (manyCats ? "three ginger cats" : "one ginger cat")
+      : others.join(" and ");
+    const together = company ? ` standing together with ${company}` : "";
+    return `${person} the footballer is clearly visible in the picture${together}, his face and body are in the frame, full scene, natural light, no text, no watermark`;
+  }
   if (dance && /\bcat\b/.test(scene)) scene = "three fluffy kittens dancing on their hind legs";
   else if (dance) scene = `${scene} dancing`;
   else if (scene === "cat") scene = "a single ginger kitten sitting and looking at the camera";
-  const cute = /kitten|\bcat\b/.test(scene);
+  const cute = scene === "cat" || /kitten/.test(scene);
   const style = cute
     ? "adorable fluffy character, big glossy eyes, soft golden cinematic light, highly detailed fur, warm background, cute vertical portrait"
     : "the real animal with its usual body and features, natural colors, soft light, full body in frame, no text, no watermark";
