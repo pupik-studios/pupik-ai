@@ -272,8 +272,17 @@ try {
 }
 
 function setStatus(online = false) {
-  statusText.textContent = online ? `Pupik AI · ур. ${lessonLevel()}` : "Загружаюсь";
+  const label = topicLabel(loadTopic());
+  const memory = label ? ` · ${label}` : "";
+  statusText.textContent = online ? `Pupik AI · ур. ${lessonLevel()}${memory}` : "Загружаюсь";
   statusDot.classList.toggle("online", online);
+}
+
+function paintMemory() {
+  const line = document.getElementById("welcomeMemory");
+  if (!line) return;
+  const label = topicLabel(loadTopic());
+  line.textContent = label ? `Помню: ${label}.` : "Нажми кнопку — я это запомню.";
 }
 
 function saveChats() {
@@ -414,6 +423,7 @@ function renderMessages() {
 
   // Начальный экран показывается только в пустом чате
   welcome.style.display = chatHistory.length ? "none" : "flex";
+  paintMemory();
 
   chatHistory.forEach((message, index) => {
     addMessageToScreen(message.role, message.content, message.image, index);
@@ -977,12 +987,42 @@ function loadLessons() {
   }
 }
 
+function topicLabel(topic) {
+  if (topic?.label) return topic.label;
+  if (topic?.kind === "skill") return "финты";
+  if (topic?.kind === "ball") return "футбол";
+  if (topic?.kind === "guide") return "чемпионат";
+  if (topic?.kind === "draw") return "рисунки";
+  if (topic?.kind === "code") return "код";
+  if (topic?.kind === "puzzle") return "задачи";
+  if (topic?.kind === "idea") return "идеи";
+  if (topic?.kind === "explain") return "объяснения";
+  return "";
+}
+
 function saveTopic(topic) {
+  const item = { ...topic, label: topicLabel(topic) };
   try {
-    localStorage.setItem(TOPIC_KEY, JSON.stringify(topic));
+    localStorage.setItem(TOPIC_KEY, JSON.stringify(item));
   } catch {
     // Память темы не обязательна для текущего ответа.
   }
+  if (item.label) remember(item.label);
+  paintMemory();
+  setStatus(true);
+}
+
+function rememberClick(prompt) {
+  const q = String(prompt || "").toLowerCase().replace(/ё/g, "е");
+  if (/финт/.test(q)) saveTopic({ kind: "skill", id: "замах" });
+  else if (/футбол/.test(q) && /факт/.test(q)) saveTopic({ kind: "ball", id: "футбол" });
+  else if (/гид|чемпионат/.test(q)) saveTopic({ kind: "guide", id: "чм" });
+  else if (/нарис/.test(q)) saveTopic({ kind: "draw", id: "рисунок" });
+  else if (/код|програм/.test(q)) saveTopic({ kind: "code", id: "код" });
+  else if (/задач/.test(q)) saveTopic({ kind: "puzzle", id: "задача" });
+  else if (/иде/.test(q)) saveTopic({ kind: "idea", id: "идея" });
+  else if (/объясн/.test(q)) saveTopic({ kind: "explain", id: "объяснение" });
+  else if (/уровень|прокач/.test(q)) saveTopic({ kind: "level", id: "уровень", label: "прокачка" });
 }
 
 function loadTopic() {
@@ -1641,7 +1681,7 @@ function moreAnswer(q) {
     const next = rest[Math.floor(Math.random() * rest.length)] || SKILLS[0];
     saveTopic({ kind: "skill", id: next.tags[0] });
     remember("финты");
-    return named(next.fact);
+    return named(`помню: финты. Следующий финт.\n\n${next.fact}`);
   }
   if (topic?.kind === "ball") {
     saveTopic({ kind: "ball", id: "футбол" });
@@ -2480,7 +2520,9 @@ document.querySelector(".main")?.addEventListener("click", () => {
 document.querySelectorAll(".suggestion").forEach(button => {
   button.addEventListener("click", () => {
     const prompt = button.dataset.prompt;
-    if (prompt) sendMessage(prompt);
+    if (!prompt) return;
+    rememberClick(prompt);
+    sendMessage(prompt);
   });
 });
 
