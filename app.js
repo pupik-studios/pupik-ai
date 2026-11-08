@@ -271,9 +271,8 @@ try {
   console.warn("Ошибка истории:", error);
 }
 
-// Пользователь всегда видит только название агента
 function setStatus(online = false) {
-  statusText.textContent = online ? "Pupik AI" : "Загружаюсь";
+  statusText.textContent = online ? `Pupik AI · ур. ${lessonLevel()}` : "Загружаюсь";
   statusDot.classList.toggle("online", online);
 }
 
@@ -966,6 +965,66 @@ function noteText() {
   return notes.length ? ` Помню: ${notes.join("; ")}.` : "";
 }
 
+const LEARN_KEY = "pupik_lessons";
+
+function loadLessons() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(LEARN_KEY) || "[]");
+    return Array.isArray(saved) ? saved : [];
+  } catch {
+    return [];
+  }
+}
+
+function lessonLevel() {
+  return Math.min(10, 1 + loadLessons().length);
+}
+
+function lessonWords(text) {
+  const stop = new Set(["это", "как", "что", "для", "меня", "мне", "тебя", "про", "или", "еще", "только", "напиши", "запомни", "правильно", "неправильно", "чтобы", "когда", "потом", "будет", "этот", "эта", "эти", "свой", "своя", "тебе", "него", "неё"]);
+  return [...new Set(String(text || "").toLowerCase().replace(/ё/g, "е").split(/[^a-zа-я0-9]+/).filter(word => word.length >= 4 && !stop.has(word)))].slice(0, 8);
+}
+
+function saveLesson(topic, text) {
+  const clean = String(text || "").trim();
+  const keys = lessonWords(`${topic} ${clean}`);
+  if (clean.length < 4 || !keys.length) {
+    return named("напиши, что запомнить. Например: запомни: эластико бьют внешней стороной стопы.");
+  }
+  const lessons = loadLessons().filter(item => item.text !== clean);
+  lessons.unshift({ keys, text: clean, topic: String(topic || "").slice(0, 80) });
+  localStorage.setItem(LEARN_KEY, JSON.stringify(lessons.slice(0, 40)));
+  setStatus(true);
+  return named(`запомнил. Теперь я уровня ${lessonLevel()} из 10. Спроси то же самое ещё раз — отвечу сам.`);
+}
+
+function teachAnswer(q) {
+  if (/какой уровень|твой уровень|прокач/.test(q)) {
+    const count = loadLessons().length;
+    return named(`я уровня ${lessonLevel()} из 10. Уроков в памяти: ${count}. Напиши «запомни: ...», и я прокачаюсь.`);
+  }
+  const memory = q.match(/(?:^|\s)(?:запомни|учись)[:,\s]+(.+)/) || q.match(/правильно[:,\s]+(.+)/);
+  if (!memory) return "";
+  return saveLesson(previousUserText() || memory[1], memory[1]);
+}
+
+function learnedAnswer(q) {
+  const keys = lessonWords(q);
+  if (!keys.length) return "";
+  let best = null;
+  let score = 0;
+  for (const lesson of loadLessons()) {
+    const hit = (lesson.keys || []).filter(key => keys.includes(key) || q.includes(key)).length;
+    if (hit > score) {
+      score = hit;
+      best = lesson;
+    }
+  }
+  const need = keys.length >= 3 ? 2 : 1;
+  if (!best || score < need) return "";
+  return named(best.text);
+}
+
 function named(text) {
   return userName ? `${userName}, ${text}` : text.charAt(0).toUpperCase() + text.slice(1);
 }
@@ -1633,6 +1692,12 @@ function localAnswer(question) {
   const idea = ideaAnswer(q);
   if (idea) return idea;
 
+  const taught = teachAnswer(q);
+  if (taught) return taught;
+
+  const learned = learnedAnswer(q);
+  if (learned) return learned;
+
   const guide = cupGuide(q);
   if (guide) return guide;
 
@@ -2092,7 +2157,7 @@ function windowAnswer(q) {
 function fallbackAnswer() {
   const name = userName || "";
   if (currentModel().repo && modelsInOrder().length && (!ai || !modelsInOrder().some(model => model.repo === aiRepo))) {
-    return named("ни одна модель не ответила. Спроси факт, задачу или «нарисуй» — это отвечу сразу.");
+    return named("этого я ещё не умею. Напиши «запомни: » и правильный ответ — я прокачаюсь и в следующий раз скажу сам.");
   }
   return `${name ? name + ", я" : "Я"} на связи. Могу написать программу, разобрать задачу, рассказать факт или нарисовать.`;
 }
