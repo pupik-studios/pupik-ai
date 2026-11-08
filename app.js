@@ -124,6 +124,7 @@ function weirdWord(word) {
 function modelGarbage(text) {
   const clean = String(text || "").toLowerCase();
   if (/не могу решить|теряюсь|превращен|тупост|какое-то странное|недоразумени/.test(clean)) return true;
+  if (/(.)\1{7,}/.test(clean)) return true;
   const words = clean.replace(/[^a-zа-я0-9]+/gi, " ").split(/\s+/).filter(Boolean);
   if (words.some(weirdWord)) return true;
   const counts = new Map();
@@ -1694,9 +1695,17 @@ function moreAnswer(q) {
   return "";
 }
 
+function practiceAnswer(q) {
+  if (!/не могу|не получается|не выходит|повторить|не понял/.test(q)) return "";
+  const skill = skillFromText(q) || skillFromHistory() || rememberedSkill();
+  if (!skill) return "";
+  saveTopic({ kind: "skill", id: skill.tags[0] });
+  return named(`это нормально: ${skill.tags[0]} сразу не выходит.\n\n${skill.lesson}\n\nСделай только первый шаг, медленно, десять раз. Когда получится, напиши «получилось».`);
+}
+
 function skillAnswer(q) {
   const namedSkill = skillFromText(q);
-  const learn = /выуч|науч|как бить|как делать|как исполн|потренир|покажи как|помоги/.test(q);
+  const learn = /выуч|науч|как бить|как делать|как исполн|потренир|покажи как|помоги|разъясн|поясни|подробн/.test(q);
   const another = /ещ[её]|например|какую-нибудь|какую нибудь|другой финт/.test(q);
   if (!namedSkill && !learn && !another) return "";
   const previous = skillFromHistory() || rememberedSkill();
@@ -1808,6 +1817,9 @@ function localAnswer(question) {
 
   const idea = ideaAnswer(q);
   if (idea) return idea;
+
+  const practice = practiceAnswer(q);
+  if (practice) return practice;
 
   const more = moreAnswer(q);
   if (more) return more;
