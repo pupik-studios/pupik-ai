@@ -966,6 +966,7 @@ function noteText() {
 }
 
 const LEARN_KEY = "pupik_lessons";
+const TOPIC_KEY = "pupik_topic";
 
 function loadLessons() {
   try {
@@ -973,6 +974,23 @@ function loadLessons() {
     return Array.isArray(saved) ? saved : [];
   } catch {
     return [];
+  }
+}
+
+function saveTopic(topic) {
+  try {
+    localStorage.setItem(TOPIC_KEY, JSON.stringify(topic));
+  } catch {
+    // Память темы не обязательна для текущего ответа.
+  }
+}
+
+function loadTopic() {
+  try {
+    const topic = JSON.parse(localStorage.getItem(TOPIC_KEY) || "null");
+    return topic && typeof topic === "object" ? topic : null;
+  } catch {
+    return null;
   }
 }
 
@@ -1589,6 +1607,7 @@ function cupRecent() {
 function cupGuide(q) {
   const follow = /город|стадион|звезд|истор|команд|групп|итог|кто выиграл|чемпион|финал/.test(q);
   if (!cupTopic(q) && !(follow && cupRecent())) return "";
+  saveTopic({ kind: "guide", id: "чм" });
   if (/город|стадион/.test(q)) return named(CUP_CITIES);
   if (/звезд/.test(q)) return named(CUP_STARS);
   if (/истор/.test(q)) return named(CUP_HISTORY);
@@ -1606,14 +1625,50 @@ function videoAnswer(q) {
   return named(`вот видео, как делать ${title}:\n${url}`);
 }
 
+function rememberedSkill() {
+  const id = loadTopic()?.id || "";
+  return SKILLS.find(skill => skill.tags.includes(id)) || null;
+}
+
+function moreAnswer(q) {
+  const bare = /^(?:ещ[её]|еще|дальше|другое|другой|другую)(?:\s|[.!?])*$/.test(q.trim());
+  const anotherSkill = /ещ[её]|другой/.test(q) && /финт|удар|прием/.test(q);
+  if (!bare && !anotherSkill) return "";
+  const topic = loadTopic();
+  const previous = skillFromHistory() || rememberedSkill();
+  if (previous || topic?.kind === "skill") {
+    const rest = SKILLS.filter(skill => skill !== previous);
+    const next = rest[Math.floor(Math.random() * rest.length)] || SKILLS[0];
+    saveTopic({ kind: "skill", id: next.tags[0] });
+    remember("финты");
+    return named(next.fact);
+  }
+  if (topic?.kind === "ball") {
+    saveTopic({ kind: "ball", id: "футбол" });
+    return named(pickFact(FACTS.filter(item => item.kind === "ball")));
+  }
+  if (topic?.kind === "guide") {
+    const parts = [CUP_STARS, CUP_CITIES, CUP_HISTORY];
+    return named(parts[Math.floor(Math.random() * parts.length)]);
+  }
+  return "";
+}
+
 function skillAnswer(q) {
   const namedSkill = skillFromText(q);
   const learn = /выуч|науч|как бить|как делать|как исполн|потренир|покажи как|помоги/.test(q);
   const another = /ещ[её]|например|какую-нибудь|какую нибудь|другой финт/.test(q);
-  if (!namedSkill && !learn) return "";
-  const skill = namedSkill || skillFromHistory();
+  if (!namedSkill && !learn && !another) return "";
+  const previous = skillFromHistory() || rememberedSkill();
+  let skill = namedSkill || previous;
+  if (another && !namedSkill) {
+    const rest = SKILLS.filter(item => item !== previous);
+    skill = rest[Math.floor(Math.random() * rest.length)] || previous;
+  }
   if (!skill) return "";
-  return named((learn || another) ? skill.lesson : skill.fact);
+  saveTopic({ kind: "skill", id: skill.tags[0] });
+  remember("финты");
+  return named(learn ? skill.lesson : skill.fact);
 }
 
 function factAnswer(q) {
@@ -1626,6 +1681,14 @@ function factAnswer(q) {
       ? FACTS.filter(item => item.kind !== "other")
       : FACTS;
   const line = pickFact(pool.length ? pool : FACTS);
+  const found = SKILLS.find(item => item.tags.some(tag => line.toLowerCase().includes(tag)));
+  if (skill && found) {
+    saveTopic({ kind: "skill", id: found.tags[0] });
+    remember("финты");
+  } else if (ball) {
+    saveTopic({ kind: "ball", id: "футбол" });
+    remember("футбол");
+  }
   if (!skill && !ball && loadNotes().some(note => /русск/.test(note)) && Math.random() < 0.25) {
     return named("Фраза для тренировки: «Я учусь говорить по-русски».");
   }
@@ -1705,6 +1768,9 @@ function localAnswer(question) {
 
   const idea = ideaAnswer(q);
   if (idea) return idea;
+
+  const more = moreAnswer(q);
+  if (more) return more;
 
   const video = videoAnswer(q);
   if (video) return video;
